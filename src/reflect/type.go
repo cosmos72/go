@@ -294,6 +294,10 @@ const (
 	// tflagRegularMemory means that equal and hash functions can treat
 	// this type as a single region of t.size bytes.
 	tflagRegularMemory tflag = 1 << 3
+
+	// tflagWrapper means that there are additional fields
+	// just beyond the outer type structure, as specified by wrapperType
+	tflagWrapper tflag = 1 << 4
 )
 
 // rtype is the common implementation of most values.
@@ -563,6 +567,21 @@ func newName(n, tag string, exported bool) name {
  * The compiler does not know about the data structures and methods below.
  */
 
+// wrapperType represents a named type created at runtime.
+// to allow creating recursive types, its underlying type is set after creation
+type wrapperType struct {
+	rtype
+	uncommon uncommonType
+	under    *rtype
+}
+
+func (w *wrapperType) underlying(operation string) *rtype {
+	if w.under == nil || w.kind != w.under.kind {
+		panic("reflect: " + operation + " of incomplete Type " + w.String())
+	}
+	return w.under
+}
+
 // Method represents a single method.
 type Method struct {
 	// Name is the method name.
@@ -570,7 +589,7 @@ type Method struct {
 	// method name. It is empty for upper case (exported) method names.
 	// The combination of PkgPath and Name uniquely identifies a method
 	// in a method set.
-	// See https://golang.org/ref/spec#Uniqueness_of_identifiers
+	// See https://golang.org/ref/spec#Uniqueness_of_identifierspanic
 	Name    string
 	PkgPath string
 
@@ -695,6 +714,8 @@ func (t *rtype) textOff(off textOff) unsafe.Pointer {
 func (t *rtype) uncommon() *uncommonType {
 	if t.tflag&tflagUncommon == 0 {
 		return nil
+	} else if t.tflag&tflagWrapper != 0 {
+		return &(*wrapperType)(unsafe.Pointer(t)).uncommon
 	}
 	switch t.Kind() {
 	case Struct:
@@ -791,6 +812,9 @@ func (t *rtype) exportedMethods() []method {
 
 func (t *rtype) NumMethod() int {
 	if t.Kind() == Interface {
+		if t.tflag&tflagWrapper != 0 {
+			t = (*wrapperType)(unsafe.Pointer(t)).underlying("NumMethod")
+		}
 		tt := (*interfaceType)(unsafe.Pointer(t))
 		return tt.NumMethod()
 	}
@@ -799,6 +823,9 @@ func (t *rtype) NumMethod() int {
 
 func (t *rtype) Method(i int) (m Method) {
 	if t.Kind() == Interface {
+		if t.tflag&tflagWrapper != 0 {
+			t = (*wrapperType)(unsafe.Pointer(t)).underlying("Method")
+		}
 		tt := (*interfaceType)(unsafe.Pointer(t))
 		return tt.Method(i)
 	}
@@ -833,6 +860,9 @@ func (t *rtype) Method(i int) (m Method) {
 
 func (t *rtype) MethodByName(name string) (m Method, ok bool) {
 	if t.Kind() == Interface {
+		if t.tflag&tflagWrapper != 0 {
+			t = (*wrapperType)(unsafe.Pointer(t)).underlying("MethodByName")
+		}
 		tt := (*interfaceType)(unsafe.Pointer(t))
 		return tt.MethodByName(name)
 	}
@@ -1896,6 +1926,75 @@ func MapOf(key, elem Type) Type {
 	return ti.(Type)
 }
 
+// NewNamed returns a new named type with the given pkgPath and name.
+//
+// The returned type is incomplete until SetUnderlying is called on it.
+func NewNamed(pkgPath string, name string) Type {
+	if name == "" {
+		panic("reflect.NewNamed: name is empty")
+	}
+	if !isValidFieldName(name) {
+		panic("reflect.NewNamed: name is invalid")
+	}
+	str := name
+	var pktPathNameOff nameOff
+	if pkgPath != "" {
+		pktPathNameOff = resolveReflectName(newName(pkgPath, "", false))
+		i := len(pkgPath) - 1
+		for i >= 0 && pkgPath[i] != '.' {
+			i--
+		}
+		str = pkgPath[i:] + "." + name
+	}
+	wrapper := &wrapperType{
+		rtype: rtype{
+			size:       0, // not known yet
+			ptrdata:    0, // not known yet
+			hash:       fnv1(0, []byte(str)...),
+			tflag:      tflagNamed | tflagUncommon | tflagWrapper,
+			align:      0,              // not known yet
+			fieldAlign: 0,              // not known yet
+			kind:       uint8(Invalid), // not known yet
+			equal:      func(unsafe.Pointer, unsafe.Pointer) bool { return false },
+			gcdata:     nil, // not known yet
+			str:        resolveReflectName(newName(str, "", true)),
+			ptrToThis:  0,
+		},
+		uncommon: uncommonType{
+			pkgPath: pktPathNameOff,
+			mcount:  0,
+			xcount:  0,
+			moff:    0,
+		},
+		under: nil,
+	}
+	return &wrapper.rtype
+}
+
+// SetUnderlying sets the underlying type of a named type created with NewNamed
+// and completes it.
+func SetUnderlying(named Type, underlying Type) {
+	t := named.(*rtype)
+	u := underlying.(*rtype) // TODO check that u.Underlying() == u
+
+	if t.tflag&tflagWrapper == 0 {
+		panic("reflect: SetUnderlying of Type not created with NewNamed: " + t.String())
+	}
+	w := (*wrapperType)(unsafe.Pointer(t))
+	if w.under != nil || Kind(w.kind) != Invalid {
+		panic("reflect: SetUnderlying already invoked on Type " + t.String())
+	}
+	w.size = u.size
+	w.ptrdata = u.ptrdata
+	w.tflag |= u.tflag & tflagRegularMemory
+	w.align = u.align
+	w.fieldAlign = u.fieldAlign
+	w.kind = u.kind
+	w.equal = u.equal
+	w.gcdata = u.gcdata
+	w.under = u
+}
+
 // TODO(crawshaw): as these funcTypeFixedN structs have no methods,
 // they could be defined at runtime using the StructOf function.
 type funcTypeFixed4 struct {
@@ -2079,6 +2178,9 @@ func funcStr(ft *funcType) string {
 // isReflexive reports whether the == operation on the type is reflexive.
 // That is, x == x for all values x of type t.
 func isReflexive(t *rtype) bool {
+	if t.tflag&tflagWrapper != 0 {
+		t = (*wrapperType)(unsafe.Pointer(t)).underlying("MapOf")
+	}
 	switch t.Kind() {
 	case Bool, Int, Int8, Int16, Int32, Int64, Uint, Uint8, Uint16, Uint32, Uint64, Uintptr, Chan, Ptr, String, UnsafePointer:
 		return true
@@ -2103,6 +2205,9 @@ func isReflexive(t *rtype) bool {
 
 // needKeyUpdate reports whether map overwrites require the key to be copied.
 func needKeyUpdate(t *rtype) bool {
+	if t.tflag&tflagWrapper != 0 {
+		t = (*wrapperType)(unsafe.Pointer(t)).underlying("MapOf")
+	}
 	switch t.Kind() {
 	case Bool, Int, Int8, Int16, Int32, Int64, Uint, Uint8, Uint16, Uint32, Uint64, Uintptr, Chan, Ptr, UnsafePointer:
 		return false
@@ -2130,6 +2235,9 @@ func needKeyUpdate(t *rtype) bool {
 
 // hashMightPanic reports whether the hash of a map key of type t might panic.
 func hashMightPanic(t *rtype) bool {
+	if t.tflag&tflagWrapper != 0 {
+		t = (*wrapperType)(unsafe.Pointer(t)).underlying("MapOf")
+	}
 	switch t.Kind() {
 	case Interface:
 		return true
@@ -2789,6 +2897,9 @@ func runtimeStructField(field StructField) (structField, string) {
 // containing pointer data. Anything after this offset is scalar data.
 // keep in sync with ../cmd/compile/internal/gc/reflect.go
 func typeptrdata(t *rtype) uintptr {
+	if t.tflag&tflagWrapper != 0 {
+		t = (*wrapperType)(unsafe.Pointer(t)).underlying("")
+	}
 	switch t.Kind() {
 	case Struct:
 		st := (*structType)(unsafe.Pointer(t))
