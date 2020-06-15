@@ -589,7 +589,7 @@ type Method struct {
 	// method name. It is empty for upper case (exported) method names.
 	// The combination of PkgPath and Name uniquely identifies a method
 	// in a method set.
-	// See https://golang.org/ref/spec#Uniqueness_of_identifierspanic
+	// See https://golang.org/ref/spec#Uniqueness_of_identifiers
 	Name    string
 	PkgPath string
 
