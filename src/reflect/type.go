@@ -295,9 +295,12 @@ const (
 	// this type as a single region of t.size bytes.
 	tflagRegularMemory tflag = 1 << 3
 
+	// tflagUnknownSize means that the type size is not known yet.
+	tflagIncomplete tflag = 1 << 4
+
 	// tflagWrapper means that there are additional fields
 	// just beyond the outer type structure, as specified by wrapperType
-	tflagWrapper tflag = 1 << 4
+	tflagWrapper tflag = 1 << 5
 )
 
 // rtype is the common implementation of most values.
@@ -786,7 +789,7 @@ func (t *rtype) String() string {
 }
 
 func (t *rtype) Size() uintptr {
-	if t.Kind() == Invalid {
+	if t.tflag&tflagIncomplete != 0 && !complete(t) {
 		panic("reflect: Size of incomplete Type " + t.String())
 	}
 	return t.size
@@ -1888,6 +1891,9 @@ func MapOf(key, elem Type) Type {
 	ktyp := key.(*rtype)
 	etyp := elem.(*rtype)
 
+	if ktyp.tflag&tflagIncomplete != 0 && !complete(ktyp) {
+		panic("reflect.MapOf: incomplete key type " + ktyp.String())
+	}
 	if ktyp.equal == nil {
 		panic("reflect.MapOf: invalid key type " + ktyp.String())
 	}
@@ -1976,13 +1982,13 @@ func NewNamed(pkgPath string, name string) Type {
 		rtype: rtype{
 			size:       0, // not known yet
 			ptrdata:    0, // not known yet
-			hash:       fnv1(0, []byte(str)...),
-			tflag:      tflagNamed | tflagUncommon | tflagWrapper,
+			hash:       0, // set below
+			tflag:      tflagNamed | tflagUncommon | tflagIncomplete | tflagWrapper,
 			align:      0,              // not known yet
 			fieldAlign: 0,              // not known yet
 			kind:       uint8(Invalid), // not known yet
-			equal:      func(unsafe.Pointer, unsafe.Pointer) bool { return false },
-			gcdata:     nil, // not known yet
+			equal:      nil,            // not known yet
+			gcdata:     nil,            // not known yet
 			str:        resolveReflectName(newName(str, "", true)),
 			ptrToThis:  0,
 		},
@@ -1994,6 +2000,8 @@ func NewNamed(pkgPath string, name string) Type {
 		},
 		underlying: nil,
 	}
+	// this is a new unique type, any hash would be ok
+	wrapper.hash = fnv1(uint32(uintptr(unsafe.Pointer(&wrapper.rtype))), []byte(str)...)
 	return &wrapper.rtype
 }
 
@@ -2012,13 +2020,31 @@ func SetUnderlying(named Type, underlying Type) {
 	}
 	w.size = u.size
 	w.ptrdata = u.ptrdata
-	w.tflag |= u.tflag & tflagRegularMemory
+	w.tflag = (w.tflag | u.tflag&tflagRegularMemory) &^ tflagIncomplete
 	w.align = u.align
 	w.fieldAlign = u.fieldAlign
 	w.kind = u.kind
 	w.equal = u.equal
 	w.gcdata = u.gcdata
 	w.underlying = u
+}
+
+// lazily compute the size and comparison function of a type.
+// Needed by array types whose element type is created with NewNamed().
+// In the future it may also support struct types whose field types are created with NewNamed()
+// and map types whose key type is created with NewNamed()
+func complete(t *rtype) bool {
+	switch t.Kind() {
+	case Array:
+		etyp := t.Elem().(*rtype)
+		count := t.Len()
+		// etyp.Size() calls complete(etyp) if needed
+		t.size = etyp.Size() * uintptr(count)
+		t.equal = computeArrayEqual(etyp, count)
+		t.tflag &^= tflagIncomplete
+		return true
+	}
+	return false
 }
 
 // TODO(crawshaw): as these funcTypeFixedN structs have no methods,
@@ -2516,6 +2542,9 @@ func StructOf(fields []StructField) Type {
 		if ft.kind&kindGCProg != 0 {
 			hasGCProg = true
 		}
+		if ft.tflag&tflagIncomplete != 0 && !complete(ft) {
+			panic("reflect.StructOf: field " + strconv.Itoa(i) + " has incomplete Type " + ft.String())
+		}
 		if fpkgpath != "" {
 			if pkgpath == "" {
 				pkgpath = fpkgpath
@@ -2971,7 +3000,7 @@ func ArrayOf(count int, elem Type) Type {
 	var iarray interface{} = [1]unsafe.Pointer{}
 	prototype := *(**arrayType)(unsafe.Pointer(&iarray))
 	array := *prototype
-	array.tflag = typ.tflag & tflagRegularMemory
+	array.tflag = typ.tflag & (tflagRegularMemory | tflagIncomplete)
 	array.str = resolveReflectName(newName(s, "", false))
 	array.hash = fnv1(typ.hash, '[')
 	for n := uint32(count); n > 0; n >>= 8 {
@@ -3046,23 +3075,7 @@ func ArrayOf(count int, elem Type) Type {
 		array.ptrdata = array.size // overestimate but ok; must match program
 	}
 
-	etyp := typ.common()
-	esize := etyp.Size()
-
-	array.equal = nil
-	if eequal := etyp.equal; eequal != nil {
-		array.equal = func(p, q unsafe.Pointer) bool {
-			for i := 0; i < count; i++ {
-				pi := arrayAt(p, i, esize, "i < count")
-				qi := arrayAt(q, i, esize, "i < count")
-				if !eequal(pi, qi) {
-					return false
-				}
-
-			}
-			return true
-		}
-	}
+	array.equal = computeArrayEqual(typ.common(), count)
 
 	switch {
 	case count == 1 && !ifaceIndir(typ):
@@ -3074,6 +3087,24 @@ func ArrayOf(count int, elem Type) Type {
 
 	ti, _ := lookupCache.LoadOrStore(ckey, &array.rtype)
 	return ti.(Type)
+}
+
+func computeArrayEqual(etyp *rtype, count int) func(p, q unsafe.Pointer) bool {
+	eequal := etyp.equal
+	if eequal == nil || etyp.tflag&tflagIncomplete != 0 {
+		return nil
+	}
+	esize := etyp.size
+	return func(p, q unsafe.Pointer) bool {
+		for i := 0; i < count; i++ {
+			pi := arrayAt(p, i, esize, "i < count")
+			qi := arrayAt(q, i, esize, "i < count")
+			if !eequal(pi, qi) {
+				return false
+			}
+		}
+		return true
+	}
 }
 
 func appendVarint(x []byte, v uintptr) []byte {
