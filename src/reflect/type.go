@@ -571,21 +571,21 @@ func newName(n, tag string, exported bool) name {
 // to allow creating recursive types, its underlying type is set after creation
 type wrapperType struct {
 	rtype
-	uncommon uncommonType
-	under    *rtype
+	uncommon   uncommonType
+	underlying *rtype
 }
 
-// if t is a *rtype created by NewNamed, return its underlying type.
+// if t is part of a wrapperType created by NewNamed, return its underlying type.
 // otherwise return t.
-func underlying(t *rtype, operation string) *rtype {
+func unwrap(t *rtype, operation string) *rtype {
 	if t.tflag&tflagWrapper == 0 {
 		return t
 	}
 	w := (*wrapperType)(unsafe.Pointer(t))
-	if w.under == nil || w.kind != w.under.kind {
+	if w.underlying == nil || w.kind != w.underlying.kind {
 		panic("reflect: " + operation + " of incomplete Type " + w.String())
 	}
-	return w.under
+	return w.underlying
 }
 
 // Method represents a single method.
@@ -785,7 +785,12 @@ func (t *rtype) String() string {
 	return s
 }
 
-func (t *rtype) Size() uintptr { return t.size }
+func (t *rtype) Size() uintptr {
+	if t.Kind() == Invalid {
+		panic("reflect: Size of incomplete Type " + t.String())
+	}
+	return t.size
+}
 
 func (t *rtype) Bits() int {
 	if t == nil {
@@ -818,7 +823,7 @@ func (t *rtype) exportedMethods() []method {
 
 func (t *rtype) NumMethod() int {
 	if t.Kind() == Interface {
-		t = underlying(t, "NumMethod")
+		t = unwrap(t, "NumMethod")
 		tt := (*interfaceType)(unsafe.Pointer(t))
 		return tt.NumMethod()
 	}
@@ -827,7 +832,7 @@ func (t *rtype) NumMethod() int {
 
 func (t *rtype) Method(i int) (m Method) {
 	if t.Kind() == Interface {
-		t = underlying(t, "Method")
+		t = unwrap(t, "Method")
 		tt := (*interfaceType)(unsafe.Pointer(t))
 		return tt.Method(i)
 	}
@@ -862,7 +867,7 @@ func (t *rtype) Method(i int) (m Method) {
 
 func (t *rtype) MethodByName(name string) (m Method, ok bool) {
 	if t.Kind() == Interface {
-		t = underlying(t, "MethodByName")
+		t = unwrap(t, "MethodByName")
 		tt := (*interfaceType)(unsafe.Pointer(t))
 		return tt.MethodByName(name)
 	}
@@ -918,13 +923,13 @@ func (t *rtype) IsVariadic() bool {
 	if t.Kind() != Func {
 		panic("reflect: IsVariadic of non-func type " + t.String())
 	}
-	t = underlying(t, "IsVariadic")
+	t = unwrap(t, "IsVariadic")
 	tt := (*funcType)(unsafe.Pointer(t))
 	return tt.outCount&(1<<15) != 0
 }
 
 func (t *rtype) Elem() Type {
-	t = underlying(t, "Elem")
+	t = unwrap(t, "Elem")
 	switch t.Kind() {
 	case Array:
 		tt := (*arrayType)(unsafe.Pointer(t))
@@ -949,7 +954,7 @@ func (t *rtype) Field(i int) StructField {
 	if t.Kind() != Struct {
 		panic("reflect: Field of non-struct type " + t.String())
 	}
-	t = underlying(t, "Field")
+	t = unwrap(t, "Field")
 	tt := (*structType)(unsafe.Pointer(t))
 	return tt.Field(i)
 }
@@ -958,7 +963,7 @@ func (t *rtype) FieldByIndex(index []int) StructField {
 	if t.Kind() != Struct {
 		panic("reflect: FieldByIndex of non-struct type " + t.String())
 	}
-	t = underlying(t, "FieldByIndex")
+	t = unwrap(t, "FieldByIndex")
 	tt := (*structType)(unsafe.Pointer(t))
 	return tt.FieldByIndex(index)
 }
@@ -967,7 +972,7 @@ func (t *rtype) FieldByName(name string) (StructField, bool) {
 	if t.Kind() != Struct {
 		panic("reflect: FieldByName of non-struct type " + t.String())
 	}
-	t = underlying(t, "FieldByName")
+	t = unwrap(t, "FieldByName")
 	tt := (*structType)(unsafe.Pointer(t))
 	return tt.FieldByName(name)
 }
@@ -976,7 +981,7 @@ func (t *rtype) FieldByNameFunc(match func(string) bool) (StructField, bool) {
 	if t.Kind() != Struct {
 		panic("reflect: FieldByNameFunc of non-struct type " + t.String())
 	}
-	t = underlying(t, "FieldByName")
+	t = unwrap(t, "FieldByName")
 	tt := (*structType)(unsafe.Pointer(t))
 	return tt.FieldByNameFunc(match)
 }
@@ -985,7 +990,7 @@ func (t *rtype) In(i int) Type {
 	if t.Kind() != Func {
 		panic("reflect: In of non-func type " + t.String())
 	}
-	t = underlying(t, "In")
+	t = unwrap(t, "In")
 	tt := (*funcType)(unsafe.Pointer(t))
 	return toType(tt.in()[i])
 }
@@ -994,7 +999,7 @@ func (t *rtype) Key() Type {
 	if t.Kind() != Map {
 		panic("reflect: Key of non-map type " + t.String())
 	}
-	t = underlying(t, "In")
+	t = unwrap(t, "In")
 	tt := (*mapType)(unsafe.Pointer(t))
 	return toType(tt.key)
 }
@@ -1003,7 +1008,7 @@ func (t *rtype) Len() int {
 	if t.Kind() != Array {
 		panic("reflect: Len of non-array type " + t.String())
 	}
-	t = underlying(t, "NumField")
+	t = unwrap(t, "NumField")
 	tt := (*arrayType)(unsafe.Pointer(t))
 	return int(tt.len)
 }
@@ -1012,7 +1017,7 @@ func (t *rtype) NumField() int {
 	if t.Kind() != Struct {
 		panic("reflect: NumField of non-struct type " + t.String())
 	}
-	t = underlying(t, "NumField")
+	t = unwrap(t, "NumField")
 	tt := (*structType)(unsafe.Pointer(t))
 	return len(tt.fields)
 }
@@ -1021,7 +1026,7 @@ func (t *rtype) NumIn() int {
 	if t.Kind() != Func {
 		panic("reflect: NumIn of non-func type " + t.String())
 	}
-	t = underlying(t, "NumIn")
+	t = unwrap(t, "NumIn")
 	tt := (*funcType)(unsafe.Pointer(t))
 	return int(tt.inCount)
 }
@@ -1030,7 +1035,7 @@ func (t *rtype) NumOut() int {
 	if t.Kind() != Func {
 		panic("reflect: NumOut of non-func type " + t.String())
 	}
-	t = underlying(t, "NumOut")
+	t = unwrap(t, "NumOut")
 	tt := (*funcType)(unsafe.Pointer(t))
 	return len(tt.out())
 }
@@ -1039,7 +1044,7 @@ func (t *rtype) Out(i int) Type {
 	if t.Kind() != Func {
 		panic("reflect: Out of non-func type " + t.String())
 	}
-	t = underlying(t, "Out")
+	t = unwrap(t, "Out")
 	tt := (*funcType)(unsafe.Pointer(t))
 	return toType(tt.out()[i])
 }
@@ -1433,7 +1438,7 @@ func (t *rtype) ptrTo() *rtype {
 	// Look in known types.
 	s := "*" + t.String()
 	for _, tt := range typesByString(s) {
-		tt = underlying(tt, "PtrTo")
+		tt = unwrap(tt, "PtrTo")
 		p := (*ptrType)(unsafe.Pointer(tt))
 		if p.elem != t {
 			continue
@@ -1507,7 +1512,7 @@ func implements(T, V *rtype) bool {
 	if T.Kind() != Interface {
 		return false
 	}
-	T = underlying(T, "Implements")
+	T = unwrap(T, "Implements")
 	t := (*interfaceType)(unsafe.Pointer(T))
 	if len(t.methods) == 0 {
 		return true
@@ -1526,7 +1531,7 @@ func implements(T, V *rtype) bool {
 	// the quadratic time  a naive search would require.
 	// See also ../runtime/iface.go.
 	if V.Kind() == Interface {
-		V = underlying(V, "Implements")
+		V = unwrap(V, "Implements")
 		v := (*interfaceType)(unsafe.Pointer(V))
 		i := 0
 		for j := 0; j < len(v.methods); j++ {
@@ -1654,8 +1659,8 @@ func haveIdenticalUnderlyingType(T, V *rtype, cmpTags bool) bool {
 		return true
 	}
 
-	T = underlying(T, "IdenticalUnderlyingType")
-	V = underlying(V, "IdenticalUnderlyingType")
+	T = unwrap(T, "IdenticalUnderlyingType")
+	V = unwrap(V, "IdenticalUnderlyingType")
 
 	// Composite types.
 	switch kind {
@@ -1851,7 +1856,7 @@ func ChanOf(dir ChanDir, t Type) Type {
 		s = "chan " + typ.String()
 	}
 	for _, tt := range typesByString(s) {
-		tt = underlying(tt, "ChanOf")
+		tt = unwrap(tt, "ChanOf")
 		ch := (*chanType)(unsafe.Pointer(tt))
 		if ch.elem == typ && ch.dir == uintptr(dir) {
 			ti, _ := lookupCache.LoadOrStore(ckey, tt)
@@ -1896,7 +1901,7 @@ func MapOf(key, elem Type) Type {
 	// Look in known types.
 	s := "map[" + ktyp.String() + "]" + etyp.String()
 	for _, tt := range typesByString(s) {
-		tt = underlying(tt, "MapOf")
+		tt = unwrap(tt, "MapOf")
 		mt := (*mapType)(unsafe.Pointer(tt))
 		if mt.key == ktyp && mt.elem == etyp {
 			ti, _ := lookupCache.LoadOrStore(ckey, tt)
@@ -1987,7 +1992,7 @@ func NewNamed(pkgPath string, name string) Type {
 			xcount:  0,
 			moff:    0,
 		},
-		under: nil,
+		underlying: nil,
 	}
 	return &wrapper.rtype
 }
@@ -2002,7 +2007,7 @@ func SetUnderlying(named Type, underlying Type) {
 		panic("reflect: SetUnderlying of Type not created with NewNamed: " + t.String())
 	}
 	w := (*wrapperType)(unsafe.Pointer(t))
-	if w.under != nil || Kind(w.kind) != Invalid {
+	if w.underlying != nil || Kind(w.kind) != Invalid {
 		panic("reflect: SetUnderlying already invoked on Type " + t.String())
 	}
 	w.size = u.size
@@ -2013,7 +2018,7 @@ func SetUnderlying(named Type, underlying Type) {
 	w.kind = u.kind
 	w.equal = u.equal
 	w.gcdata = u.gcdata
-	w.under = u
+	w.underlying = u
 }
 
 // TODO(crawshaw): as these funcTypeFixedN structs have no methods,
@@ -2199,7 +2204,7 @@ func funcStr(ft *funcType) string {
 // isReflexive reports whether the == operation on the type is reflexive.
 // That is, x == x for all values x of type t.
 func isReflexive(t *rtype) bool {
-	t = underlying(t, "MapOf")
+	t = unwrap(t, "MapOf")
 	switch t.Kind() {
 	case Bool, Int, Int8, Int16, Int32, Int64, Uint, Uint8, Uint16, Uint32, Uint64, Uintptr, Chan, Ptr, String, UnsafePointer:
 		return true
@@ -2224,7 +2229,7 @@ func isReflexive(t *rtype) bool {
 
 // needKeyUpdate reports whether map overwrites require the key to be copied.
 func needKeyUpdate(t *rtype) bool {
-	t = underlying(t, "MapOf")
+	t = unwrap(t, "MapOf")
 	switch t.Kind() {
 	case Bool, Int, Int8, Int16, Int32, Int64, Uint, Uint8, Uint16, Uint32, Uint64, Uintptr, Chan, Ptr, UnsafePointer:
 		return false
@@ -2252,7 +2257,7 @@ func needKeyUpdate(t *rtype) bool {
 
 // hashMightPanic reports whether the hash of a map key of type t might panic.
 func hashMightPanic(t *rtype) bool {
-	t = underlying(t, "MapOf")
+	t = unwrap(t, "MapOf")
 	switch t.Kind() {
 	case Interface:
 		return true
@@ -2912,7 +2917,7 @@ func runtimeStructField(field StructField) (structField, string) {
 // containing pointer data. Anything after this offset is scalar data.
 // keep in sync with ../cmd/compile/internal/gc/reflect.go
 func typeptrdata(t *rtype) uintptr {
-	t = underlying(t, "")
+	t = unwrap(t, "")
 	switch t.Kind() {
 	case Struct:
 		st := (*structType)(unsafe.Pointer(t))

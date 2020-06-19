@@ -2351,6 +2351,9 @@ func Zero(typ Type) Value {
 		panic("reflect: Zero(nil)")
 	}
 	t := typ.(*rtype)
+	if t.Kind() == Invalid {
+		panic("reflect: Zero of incomplete Type " + t.String())
+	}
 	fl := flag(t.Kind())
 	if ifaceIndir(t) {
 		return Value{t, unsafe_New(t), fl | flagIndir}
@@ -2365,6 +2368,9 @@ func New(typ Type) Value {
 		panic("reflect: New(nil)")
 	}
 	t := typ.(*rtype)
+	if t.Kind() == Invalid {
+		panic("reflect: New of incomplete Type " + t.String())
+	}
 	ptr := unsafe_New(t)
 	fl := flag(Ptr)
 	return Value{t.ptrTo(), ptr, fl}
@@ -2375,6 +2381,9 @@ func New(typ Type) Value {
 func NewAt(typ Type, p unsafe.Pointer) Value {
 	fl := flag(Ptr)
 	t := typ.(*rtype)
+	if t.Kind() == Invalid {
+		panic("reflect: NewAt of incomplete Type " + t.String())
+	}
 	return Value{t.ptrTo(), p, fl}
 }
 
