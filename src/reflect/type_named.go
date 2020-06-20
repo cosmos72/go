@@ -136,6 +136,10 @@ func (dst rtypeSet) insert(t *rtype) {
 	dst[t] = struct{}{}
 }
 
+func (dst rtypeSet) remove(t *rtype) {
+	delete(dst, t)
+}
+
 func (dst wrapperMap) insert(wrapper *wrapperType, t *rtype) {
 	set, ok := dst[wrapper]
 	if !ok {
@@ -161,18 +165,28 @@ func markIncomplete(t *rtype, directDependencies ...*rtype) {
 }
 
 // complete the specified type.
-func complete(t *rtype) {
-	switch t.Kind() {
-	case Array:
-		completeArray(t)
-	default:
+func complete(t *rtype, inprogress rtypeSet) {
+	if t.tflag&tflagIncomplete == 0 {
 		return
 	}
-
+	if _, ok := inprogress[t]; ok {
+		panic("reflect: SetUnderlying detected a dependency loop in Type " + t.String())
+	}
+	inprogress.insert(t)
+	switch t.Kind() {
+	case Array:
+		completeArray(t, inprogress)
+	case Map:
+		completeMap(t, inprogress)
+	}
+	inprogress.remove(t)
 	incompleteMutex.Lock()
-	set := incompleteTypes[t]
+
+	t.tflag &^= tflagUnknownSize | tflagIncomplete
+
+	wrappers := incompleteTypes[t]
 	delete(incompleteTypes, t)
-	for wrapper := range set {
+	for wrapper := range wrappers {
 		delete(incompleteWrappers[wrapper], t)
 	}
 	incompleteMutex.Unlock()

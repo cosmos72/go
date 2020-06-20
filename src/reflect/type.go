@@ -1874,10 +1874,7 @@ func MapOf(key, elem Type) Type {
 	ktyp := key.(*rtype)
 	etyp := elem.(*rtype)
 
-	if ktyp.tflag&tflagIncomplete != 0 {
-		panic("reflect.MapOf: incomplete key type " + ktyp.String())
-	}
-	if ktyp.equal == nil {
+	if ktyp.equal == nil && ktyp.tflag&tflagIncomplete == 0 {
 		panic("reflect.MapOf: invalid key type " + ktyp.String())
 	}
 
@@ -1906,13 +1903,36 @@ func MapOf(key, elem Type) Type {
 	mt.str = resolveReflectName(newName(s, "", false))
 	mt.tflag = 0
 	mt.hash = fnv1(etyp.hash, 'm', byte(ktyp.hash>>24), byte(ktyp.hash>>16), byte(ktyp.hash>>8), byte(ktyp.hash))
+	mt.flags = 0
+	mt.ptrToThis = 0
 	mt.key = ktyp
 	mt.elem = etyp
+
+	t := &mt.rtype
+	if (ktyp.tflag|etyp.tflag)&tflagIncomplete != 0 {
+		markIncomplete(t, ktyp, etyp)
+	} else {
+		completeMap(t, make(rtypeSet))
+	}
+	ti, _ := lookupCache.LoadOrStore(ckey, &mt.rtype)
+	return ti.(Type)
+}
+
+func completeMap(t *rtype, inprogress rtypeSet) {
+	// panics if Kind() != Map
+	ktyp := t.Key().(*rtype)
+	etyp := t.Elem().(*rtype)
+	complete(ktyp, inprogress)
+	complete(etyp, inprogress)
+	if ktyp.equal == nil {
+		panic("reflect.MapOf: invalid key type " + ktyp.String())
+	}
+
+	mt := (*mapType)(unsafe.Pointer(t))
 	mt.bucket = bucketOf(ktyp, etyp)
 	mt.hasher = func(p unsafe.Pointer, seed uintptr) uintptr {
 		return typehash(ktyp, p, seed)
 	}
-	mt.flags = 0
 	if ktyp.size > maxKeySize {
 		mt.keysize = uint8(ptrSize)
 		mt.flags |= 1 // indirect key
@@ -1935,10 +1955,6 @@ func MapOf(key, elem Type) Type {
 	if hashMightPanic(ktyp) {
 		mt.flags |= 16
 	}
-	mt.ptrToThis = 0
-
-	ti, _ := lookupCache.LoadOrStore(ckey, &mt.rtype)
-	return ti.(Type)
 }
 
 // TODO(crawshaw): as these funcTypeFixedN structs have no methods,
@@ -2894,9 +2910,6 @@ func ArrayOf(count int, elem Type) Type {
 	var iarray interface{} = [1]unsafe.Pointer{}
 	prototype := *(**arrayType)(unsafe.Pointer(&iarray))
 	array := *prototype
-	if typ.tflag&tflagUnknownSize == 0 {
-		array.size = typ.size * uintptr(count)
-	}
 	array.tflag = typ.tflag & tflagRegularMemory
 	array.str = resolveReflectName(newName(s, "", false))
 	array.hash = fnv1(typ.hash, '[')
@@ -2910,21 +2923,27 @@ func ArrayOf(count int, elem Type) Type {
 	array.slice = SliceOf(elem).(*rtype)
 	array.len = uintptr(count)
 
+	if count != 0 && typ.tflag&tflagUnknownSize != 0 {
+		array.tflag |= tflagUnknownSize
+	} else {
+		array.size = typ.size * uintptr(count)
+	}
 	t := &array.rtype
 	if typ.tflag&tflagIncomplete != 0 {
 		markIncomplete(t, typ)
 	} else {
-		completeArray(t)
+		completeArray(t, make(rtypeSet))
 	}
 	ti, _ := lookupCache.LoadOrStore(ckey, t)
 	return ti.(Type)
 }
 
-func completeArray(t *rtype) {
+func completeArray(t *rtype, inprogress rtypeSet) {
 	// Len() panics if kind != Array
 	count := t.Len()
 	elem := t.Elem()
 	typ := elem.(*rtype)
+	complete(typ, inprogress)
 	if typ.size > 0 {
 		max := ^uintptr(0) / typ.size
 		if uintptr(count) > max {
@@ -3011,7 +3030,6 @@ func completeArray(t *rtype) {
 	default:
 		array.kind &^= kindDirectIface
 	}
-	array.tflag &^= tflagIncomplete
 }
 
 func appendVarint(x []byte, v uintptr) []byte {
