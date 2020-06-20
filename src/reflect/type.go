@@ -296,6 +296,10 @@ const (
 	tflagRegularMemory tflag = 1 << 3
 
 	// tflagUnknownSize means that the type size is not known yet.
+	// Implies tflagIncomplete.
+	tflagUnknownSize tflag = 1 << 4
+
+	// tflagIncomplete means that the type is not complete yet.
 	tflagIncomplete tflag = 1 << 4
 
 	// tflagWrapper means that there are additional fields
@@ -570,27 +574,6 @@ func newName(n, tag string, exported bool) name {
  * The compiler does not know about the data structures and methods below.
  */
 
-// wrapperType represents a named type created at runtime.
-// to allow creating recursive types, its underlying type is set after creation
-type wrapperType struct {
-	rtype
-	uncommon   uncommonType
-	underlying *rtype
-}
-
-// if t is part of a wrapperType created by NewNamed, return its underlying type.
-// otherwise return t.
-func unwrap(t *rtype, operation string) *rtype {
-	if t.tflag&tflagWrapper == 0 {
-		return t
-	}
-	w := (*wrapperType)(unsafe.Pointer(t))
-	if w.underlying == nil || w.kind != w.underlying.kind {
-		panic("reflect: " + operation + " of incomplete Type " + w.String())
-	}
-	return w.underlying
-}
-
 // Method represents a single method.
 type Method struct {
 	// Name is the method name.
@@ -789,8 +772,8 @@ func (t *rtype) String() string {
 }
 
 func (t *rtype) Size() uintptr {
-	if t.tflag&tflagIncomplete != 0 && !complete(t) {
-		panic("reflect: Size of incomplete Type " + t.String())
+	if t.tflag&tflagUnknownSize != 0 {
+		panic("reflect: Size of incomplete Type " + t.String() + " is not known yet")
 	}
 	return t.size
 }
@@ -1891,7 +1874,7 @@ func MapOf(key, elem Type) Type {
 	ktyp := key.(*rtype)
 	etyp := elem.(*rtype)
 
-	if ktyp.tflag&tflagIncomplete != 0 && !complete(ktyp) {
+	if ktyp.tflag&tflagIncomplete != 0 {
 		panic("reflect.MapOf: incomplete key type " + ktyp.String())
 	}
 	if ktyp.equal == nil {
@@ -1956,95 +1939,6 @@ func MapOf(key, elem Type) Type {
 
 	ti, _ := lookupCache.LoadOrStore(ckey, &mt.rtype)
 	return ti.(Type)
-}
-
-// NewNamed returns a new named type with the given pkgPath and name.
-//
-// The returned type is incomplete until SetUnderlying is called on it.
-func NewNamed(pkgPath string, name string) Type {
-	if name == "" {
-		panic("reflect.NewNamed: name is empty")
-	}
-	if !isValidFieldName(name) {
-		panic("reflect.NewNamed: name is invalid")
-	}
-	str := name
-	var pktPathNameOff nameOff
-	if pkgPath != "" {
-		pktPathNameOff = resolveReflectName(newName(pkgPath, "", false))
-		i := len(pkgPath) - 1
-		for i >= 0 && pkgPath[i] != '.' {
-			i--
-		}
-		str = pkgPath[i:] + "." + name
-	}
-	wrapper := &wrapperType{
-		rtype: rtype{
-			size:       0, // not known yet
-			ptrdata:    0, // not known yet
-			hash:       0, // set below
-			tflag:      tflagNamed | tflagUncommon | tflagIncomplete | tflagWrapper,
-			align:      0,              // not known yet
-			fieldAlign: 0,              // not known yet
-			kind:       uint8(Invalid), // not known yet
-			equal:      nil,            // not known yet
-			gcdata:     nil,            // not known yet
-			str:        resolveReflectName(newName(str, "", true)),
-			ptrToThis:  0,
-		},
-		uncommon: uncommonType{
-			pkgPath: pktPathNameOff,
-			mcount:  0,
-			xcount:  0,
-			moff:    0,
-		},
-		underlying: nil,
-	}
-	// this is a new unique type, any hash would be ok
-	wrapper.hash = fnv1(uint32(uintptr(unsafe.Pointer(&wrapper.rtype))), []byte(str)...)
-	return &wrapper.rtype
-}
-
-// SetUnderlying sets the underlying type of a named type created with NewNamed
-// and completes it.
-func SetUnderlying(named Type, underlying Type) {
-	t := named.(*rtype)
-	u := underlying.(*rtype) // TODO check that u.Underlying() == u
-
-	if t.tflag&tflagWrapper == 0 {
-		panic("reflect: SetUnderlying of Type not created with NewNamed: " + t.String())
-	}
-	w := (*wrapperType)(unsafe.Pointer(t))
-	if w.underlying != nil || Kind(w.kind) != Invalid {
-		panic("reflect: SetUnderlying already invoked on Type " + t.String())
-	}
-	w.size = u.size
-	w.ptrdata = u.ptrdata
-	w.tflag = (w.tflag | u.tflag&tflagRegularMemory) &^ tflagIncomplete
-	w.align = u.align
-	w.fieldAlign = u.fieldAlign
-	w.kind = u.kind
-	w.equal = u.equal
-	w.gcdata = u.gcdata
-	w.underlying = u
-}
-
-// lazily compute the size and comparison function of a type.
-// Needed by array types whose element type is created with NewNamed().
-// In the future it may also support struct types whose field types are created with NewNamed()
-// and map types whose key type is created with NewNamed()
-func complete(t *rtype) bool {
-	switch t.Kind() {
-	case Array:
-		etyp := t.Elem().(*rtype)
-		count := t.Len()
-		// etyp.Size() calls complete(etyp) if needed
-		t.size = etyp.Size() * uintptr(count)
-		t.equal = computeArrayEqual(etyp, count)
-		t.tflag &^= tflagIncomplete
-		return true
-	}
-	return false
 }
 
 // TODO(crawshaw): as these funcTypeFixedN structs have no methods,
@@ -2542,7 +2436,7 @@ func StructOf(fields []StructField) Type {
 		if ft.kind&kindGCProg != 0 {
 			hasGCProg = true
 		}
-		if ft.tflag&tflagIncomplete != 0 && !complete(ft) {
+		if ft.tflag&tflagIncomplete != 0 {
 			panic("reflect.StructOf: field " + strconv.Itoa(i) + " has incomplete Type " + ft.String())
 		}
 		if fpkgpath != "" {
@@ -3000,29 +2894,50 @@ func ArrayOf(count int, elem Type) Type {
 	var iarray interface{} = [1]unsafe.Pointer{}
 	prototype := *(**arrayType)(unsafe.Pointer(&iarray))
 	array := *prototype
-	array.tflag = typ.tflag & (tflagRegularMemory | tflagIncomplete)
+	if typ.tflag&tflagUnknownSize == 0 {
+		array.size = typ.size * uintptr(count)
+	}
+	array.tflag = typ.tflag & tflagRegularMemory
 	array.str = resolveReflectName(newName(s, "", false))
 	array.hash = fnv1(typ.hash, '[')
 	for n := uint32(count); n > 0; n >>= 8 {
 		array.hash = fnv1(array.hash, byte(n))
 	}
 	array.hash = fnv1(array.hash, ']')
-	array.elem = typ
+	array.equal = nil // set by completeArray()
 	array.ptrToThis = 0
+	array.elem = typ
+	array.slice = SliceOf(elem).(*rtype)
+	array.len = uintptr(count)
+
+	t := &array.rtype
+	if typ.tflag&tflagIncomplete != 0 {
+		markIncomplete(t, typ)
+	} else {
+		completeArray(t)
+	}
+	ti, _ := lookupCache.LoadOrStore(ckey, t)
+	return ti.(Type)
+}
+
+func completeArray(t *rtype) {
+	// Len() panics if kind != Array
+	count := t.Len()
+	elem := t.Elem()
+	typ := elem.(*rtype)
 	if typ.size > 0 {
 		max := ^uintptr(0) / typ.size
 		if uintptr(count) > max {
 			panic("reflect.ArrayOf: array size would exceed virtual address space")
 		}
 	}
+	array := (*arrayType)(unsafe.Pointer(t))
 	array.size = typ.size * uintptr(count)
 	if count > 0 && typ.ptrdata != 0 {
 		array.ptrdata = typ.size*uintptr(count-1) + typ.ptrdata
 	}
 	array.align = typ.align
 	array.fieldAlign = typ.fieldAlign
-	array.len = uintptr(count)
-	array.slice = SliceOf(elem).(*rtype)
 
 	switch {
 	case typ.ptrdata == 0 || array.size == 0:
@@ -3075,7 +2990,19 @@ func ArrayOf(count int, elem Type) Type {
 		array.ptrdata = array.size // overestimate but ok; must match program
 	}
 
-	array.equal = computeArrayEqual(typ.common(), count)
+	if eequal := typ.equal; eequal != nil {
+		esize := typ.size
+		array.equal = func(p, q unsafe.Pointer) bool {
+			for i := 0; i < count; i++ {
+				pi := arrayAt(p, i, esize, "i < count")
+				qi := arrayAt(q, i, esize, "i < count")
+				if !eequal(pi, qi) {
+					return false
+				}
+			}
+			return true
+		}
+	}
 
 	switch {
 	case count == 1 && !ifaceIndir(typ):
@@ -3084,27 +3011,7 @@ func ArrayOf(count int, elem Type) Type {
 	default:
 		array.kind &^= kindDirectIface
 	}
-
-	ti, _ := lookupCache.LoadOrStore(ckey, &array.rtype)
-	return ti.(Type)
-}
-
-func computeArrayEqual(etyp *rtype, count int) func(p, q unsafe.Pointer) bool {
-	eequal := etyp.equal
-	if eequal == nil || etyp.tflag&tflagIncomplete != 0 {
-		return nil
-	}
-	esize := etyp.size
-	return func(p, q unsafe.Pointer) bool {
-		for i := 0; i < count; i++ {
-			pi := arrayAt(p, i, esize, "i < count")
-			qi := arrayAt(q, i, esize, "i < count")
-			if !eequal(pi, qi) {
-				return false
-			}
-		}
-		return true
-	}
+	array.tflag &^= tflagIncomplete
 }
 
 func appendVarint(x []byte, v uintptr) []byte {
