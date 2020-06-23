@@ -164,6 +164,29 @@ func markIncomplete(t *rtype, directDependencies ...*rtype) {
 	incompleteMutex.Unlock()
 }
 
+// compute the size of specified type
+func computeSize(t *rtype, inprogress rtypeSet) {
+	if t.tflag&tflagUnknownSize == 0 {
+		return
+	}
+	if _, ok := inprogress[t]; ok {
+		panic("reflect: SetUnderlying detected a dependency loop in Type " + t.String())
+	}
+	if inprogress == nil {
+		inprogress = make(rtypeSet)
+	}
+	inprogress.insert(t)
+	switch t.Kind() {
+	case Array:
+		computeSizeArray(t, inprogress)
+	case Struct:
+		computeSizeStruct(t, inprogress)
+	}
+	inprogress.remove(t)
+
+	t.tflag &^= tflagUnknownSize
+}
+
 // complete the specified type.
 func complete(t *rtype, inprogress rtypeSet) {
 	if t.tflag&tflagIncomplete == 0 {
@@ -171,6 +194,9 @@ func complete(t *rtype, inprogress rtypeSet) {
 	}
 	if _, ok := inprogress[t]; ok {
 		panic("reflect: SetUnderlying detected a dependency loop in Type " + t.String())
+	}
+	if inprogress == nil {
+		inprogress = make(rtypeSet)
 	}
 	inprogress.insert(t)
 	switch t.Kind() {

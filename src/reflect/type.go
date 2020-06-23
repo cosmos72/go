@@ -1912,7 +1912,7 @@ func MapOf(key, elem Type) Type {
 	if (ktyp.tflag|etyp.tflag)&tflagIncomplete != 0 {
 		markIncomplete(t, ktyp, etyp)
 	} else {
-		completeMap(t, make(rtypeSet))
+		completeMap(t, nil)
 	}
 	ti, _ := lookupCache.LoadOrStore(ckey, &mt.rtype)
 	return ti.(Type)
@@ -2820,6 +2820,10 @@ func StructOf(fields []StructField) Type {
 	return addToCache(&typ.rtype)
 }
 
+func computeSizeStruct(t *rtype, inprogress rtypeSet) {
+	// TODO
+}
+
 // runtimeStructField takes a StructField value passed to StructOf and
 // returns both the corresponding internal representation, of type
 // structField, and the pkgpath value to use for this field.
@@ -2923,27 +2927,27 @@ func ArrayOf(count int, elem Type) Type {
 	array.slice = SliceOf(elem).(*rtype)
 	array.len = uintptr(count)
 
-	if count != 0 && typ.tflag&tflagUnknownSize != 0 {
+	t := &array.rtype
+	if typ.tflag&tflagUnknownSize != 0 {
 		array.tflag |= tflagUnknownSize
 	} else {
-		array.size = typ.size * uintptr(count)
+		computeSizeArray(t, nil)
 	}
-	t := &array.rtype
 	if typ.tflag&tflagIncomplete != 0 {
 		markIncomplete(t, typ)
 	} else {
-		completeArray(t, make(rtypeSet))
+		completeArray(t, nil)
 	}
 	ti, _ := lookupCache.LoadOrStore(ckey, t)
 	return ti.(Type)
 }
 
-func completeArray(t *rtype, inprogress rtypeSet) {
+func computeSizeArray(t *rtype, inprogress rtypeSet) {
 	// Len() panics if kind != Array
 	count := t.Len()
-	elem := t.Elem()
-	typ := elem.(*rtype)
-	complete(typ, inprogress)
+	typ := t.Elem().(*rtype)
+	computeSize(typ, inprogress)
+
 	if typ.size > 0 {
 		max := ^uintptr(0) / typ.size
 		if uintptr(count) > max {
@@ -2952,12 +2956,46 @@ func completeArray(t *rtype, inprogress rtypeSet) {
 	}
 	array := (*arrayType)(unsafe.Pointer(t))
 	array.size = typ.size * uintptr(count)
-	if count > 0 && typ.ptrdata != 0 {
-		array.ptrdata = typ.size*uintptr(count-1) + typ.ptrdata
-	}
 	array.align = typ.align
 	array.fieldAlign = typ.fieldAlign
 
+	if eequal := typ.equal; eequal != nil {
+		esize := typ.size
+		array.equal = func(p, q unsafe.Pointer) bool {
+			for i := 0; i < count; i++ {
+				pi := arrayAt(p, i, esize, "i < count")
+				qi := arrayAt(q, i, esize, "i < count")
+				if !eequal(pi, qi) {
+					return false
+				}
+			}
+			return true
+		}
+	}
+
+	switch {
+	case count == 1 && !ifaceIndir(typ):
+		// array of 1 direct iface type can be direct
+		array.kind |= kindDirectIface
+	default:
+		array.kind &^= kindDirectIface
+	}
+}
+
+func completeArray(t *rtype, inprogress rtypeSet) {
+	if t.tflag&tflagUnknownSize != 0 {
+		computeSizeArray(t, inprogress)
+	}
+
+	// Len() panics if kind != Array
+	count := t.Len()
+	typ := t.Elem().(*rtype)
+	complete(typ, inprogress)
+
+	array := (*arrayType)(unsafe.Pointer(t))
+	if count > 0 && typ.ptrdata != 0 {
+		array.ptrdata = typ.size*uintptr(count-1) + typ.ptrdata
+	}
 	switch {
 	case typ.ptrdata == 0 || array.size == 0:
 		// No pointers.
@@ -3007,28 +3045,6 @@ func completeArray(t *rtype, inprogress rtypeSet) {
 		array.kind |= kindGCProg
 		array.gcdata = &prog[0]
 		array.ptrdata = array.size // overestimate but ok; must match program
-	}
-
-	if eequal := typ.equal; eequal != nil {
-		esize := typ.size
-		array.equal = func(p, q unsafe.Pointer) bool {
-			for i := 0; i < count; i++ {
-				pi := arrayAt(p, i, esize, "i < count")
-				qi := arrayAt(q, i, esize, "i < count")
-				if !eequal(pi, qi) {
-					return false
-				}
-			}
-			return true
-		}
-	}
-
-	switch {
-	case count == 1 && !ifaceIndir(typ):
-		// array of 1 direct iface type can be direct
-		array.kind |= kindDirectIface
-	default:
-		array.kind &^= kindDirectIface
 	}
 }
 
