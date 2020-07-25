@@ -12,9 +12,10 @@ import (
 // Unlike in reflect.Method, the implementing Func is not part of this
 // structure.
 type Method struct {
-	Name, PkgPath string
-	Type          Type // receiver = first arg, except for interface methods
-	Index         int
+	Name    string
+	PkgPath string
+	Type    Type // receiver = first arg, except for interface methods
+	// Index int
 }
 
 func methodsFromReflect(rtyp reflect.Type) *[]Method {
@@ -37,5 +38,5 @@ func (mtd *Method) fromReflect(rmethod reflect.Method) {
 	mtd.Name = rmethod.Name
 	mtd.PkgPath = rmethod.PkgPath
 	mtd.Type = Of(rmethod.Type) // TODO avoid infinite recursion
-	mtd.Index = rmethod.Index
+	// mtd.Index = rmethod.Index
 }

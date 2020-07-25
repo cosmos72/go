@@ -11,6 +11,7 @@ package incomplete
 
 import (
 	"reflect"
+	"sync"
 	"unsafe"
 )
 
@@ -44,49 +45,51 @@ type Type interface {
 	isType()
 }
 
-// A kind represents the specific kind of type that a Type represents.
-// The zero kind is not a valid kind.
+// analogous to reflect.Kind.
 type kind uint8
 
 const (
-	kInvalid kind = iota
-	kBool
-	kInt
-	kInt8
-	kInt16
-	kInt32
-	kInt64
-	kUint
-	kUint8
-	kUint16
-	kUint32
-	kUint64
-	kUintptr
-	kFloat32
-	kFloat64
-	kComplex64
-	kComplex128
-	kArray
-	kChan
-	kFunc
-	kInterface
-	kMap
-	kPtr
-	kSlice
-	kString
-	kStruct
-	kUnsafePointer
+	kInvalid       = kind(reflect.Invalid)
+	kBool          = kind(reflect.Bool)
+	kInt           = kind(reflect.Int)
+	kInt8          = kind(reflect.Int8)
+	kInt16         = kind(reflect.Int16)
+	kInt32         = kind(reflect.Int32)
+	kInt64         = kind(reflect.Int64)
+	kUint          = kind(reflect.Uint)
+	kUint8         = kind(reflect.Uint8)
+	kUint16        = kind(reflect.Uint16)
+	kUint32        = kind(reflect.Uint32)
+	kUint64        = kind(reflect.Uint64)
+	kUintptr       = kind(reflect.Uintptr)
+	kFloat32       = kind(reflect.Float32)
+	kFloat64       = kind(reflect.Float64)
+	kComplex64     = kind(reflect.Complex64)
+	kComplex128    = kind(reflect.Complex128)
+	kArray         = kind(reflect.Array)
+	kChan          = kind(reflect.Chan)
+	kFunc          = kind(reflect.Func)
+	kInterface     = kind(reflect.Interface)
+	kMap           = kind(reflect.Map)
+	kPtr           = kind(reflect.Ptr)
+	kSlice         = kind(reflect.Slice)
+	kString        = kind(reflect.String)
+	kStruct        = kind(reflect.Struct)
+	kUnsafePointer = kind(reflect.UnsafePointer)
 )
 
 // tflag is used by an itype to signal what extra type information is available.
 type tflag uint8
 
 const (
-	// tflagSize means the type has known size.
-	tflagSize tflag = 1 << 0
-
 	// tflagDefined means Define was called on the type
-	tflagDefined tflag = 1 << 1
+	tflagDefined tflag = 1 << 0
+
+	// tflagRType means the type has a known reflect.Type
+	tflagRType tflag = 1 << 1
+
+	// tflagSize means the type has known size.
+	tflagSize tflag = 1 << 2
 )
 
 // itype is the implementation of Type
@@ -96,7 +99,7 @@ type itype struct {
 	size    uintptr
 	kind    kind
 	tflag   tflag
-	// one of: reflect.Type, arrayType, chanType, funcType,
+	// nil or one of: reflect.Type, arrayType, chanType, funcType,
 	// interfaceType, mapType, ptrType, sliceType, structType
 	extra interface{}
 }
@@ -115,16 +118,6 @@ type arrayType struct {
 type chanType struct {
 	elem Type
 	dir  reflect.ChanDir
-}
-
-type funcType struct {
-	in       []Type
-	out      []Type
-	variadic bool
-}
-
-type interfaceType struct {
-	embedded []Type
 }
 
 type mapType struct {
@@ -156,8 +149,15 @@ func (t *itype) AddMethod(mtd Method) {
 func (t *itype) isType() {
 }
 
+// ofMap is the cache for Of.
+var ofMap sync.Map // map[*reflect.rtype]*itype
+
 // Of returns a Type representing the given complete reflect.Type.
 func Of(rtyp reflect.Type) Type {
+	// Check the cache.
+	if t, ok := ofMap.Load(rtyp); ok {
+		return t.(*itype)
+	}
 	var named *namedType
 	if rtyp.Name() != "" {
 		named = &namedType{
@@ -165,13 +165,16 @@ func Of(rtyp reflect.Type) Type {
 			pkgPath: rtyp.PkgPath(),
 		}
 	}
-	return &itype{
+	ityp := itype{
 		named:   named,
 		methods: methodsFromReflect(rtyp),
 		size:    rtyp.Size(),
+		kind:    kind(rtyp.Kind()),
 		tflag:   tflagSize | tflagDefined,
 		extra:   rtyp,
 	}
+	t, _ := ofMap.LoadOrStore(rtyp, &ityp)
+	return t.(*itype)
 }
 
 // NamedOf creates the incomplete type with the specified name and package path.
@@ -184,6 +187,7 @@ func NamedOf(name, pkgPath string) Type {
 		},
 		methods: nil,
 		size:    0,
+		kind:    kInvalid,
 		tflag:   tflag(0),
 		extra:   nil,
 	}
@@ -195,12 +199,18 @@ func ArrayOf(count int, elem Type) Type {
 	if count < 0 {
 		panic("incomplete.ArrayOf: element count is negative")
 	}
-
 	ielem := elem.(*itype)
+	if ielem.tflag&tflagRType != 0 {
+		return Of(reflect.ArrayOf(
+			count,
+			ielem.extra.(reflect.Type),
+		))
+	}
 	return &itype{
 		named:   nil,
 		methods: nil,
 		size:    uintptr(count) * ielem.size,
+		kind:    kArray,
 		tflag:   ielem.tflag & tflagSize,
 		extra: arrayType{
 			elem:  elem,
@@ -213,10 +223,18 @@ const sizeOfChan = unsafe.Sizeof(make(chan int))
 
 // ChanOf is analogous to reflect.ChanOf.
 func ChanOf(dir reflect.ChanDir, elem Type) Type {
+	ielem := elem.(*itype)
+	if ielem.tflag&tflagRType != 0 {
+		return Of(reflect.ChanOf(
+			dir,
+			ielem.extra.(reflect.Type),
+		))
+	}
 	return &itype{
 		named:   nil,
 		methods: nil,
 		size:    sizeOfChan,
+		kind:    kChan,
 		tflag:   tflagSize,
 		extra: chanType{
 			elem: elem,
@@ -225,51 +243,23 @@ func ChanOf(dir reflect.ChanDir, elem Type) Type {
 	}
 }
 
-const sizeOfFunc = unsafe.Sizeof(func() {})
-
-// FuncOf is analogous to reflect.FuncOf.
-func FuncOf(in, out []Type, variadic bool) Type {
-	return &itype{
-		named:   nil,
-		methods: nil,
-		size:    sizeOfFunc,
-		tflag:   tflagSize,
-		extra: funcType{
-			// safety: make a copy of in[] and out[]
-			in:       append([]Type{}, in...),
-			out:      append([]Type{}, out...),
-			variadic: variadic,
-		},
-	}
-}
-
-// InterfaceOf returns an incomplete interface type with the given list of
-// named interface types. InterfaceOf panics if one of the given embedded types
-// is unnamed or its kind is not reflect.Interface. It also panics if types
-// with distinct, non-empty package paths are embedded.
-//
-// Explicit methods can be added with AddMethod.
-func InterfaceOf(embedded []Type) Type {
-	return &itype{
-		named:   nil,
-		methods: nil,
-		size:    0, // size of interfaces can vary?
-		tflag:   tflag(0),
-		extra: interfaceType{
-			// safety: make a copy of embedded[]
-			embedded: append([]Type{}, embedded...),
-		},
-	}
-}
-
 const sizeOfMap = unsafe.Sizeof(make(map[int]int))
 
 // MapOf creates an incomplete map type with the given key and element types.
 func MapOf(key, elem Type) Type {
+	ikey := key.(*itype)
+	ielem := elem.(*itype)
+	if ikey.tflag&ielem.tflag&tflagRType != 0 {
+		return Of(reflect.MapOf(
+			ikey.extra.(reflect.Type),
+			ielem.extra.(reflect.Type),
+		))
+	}
 	return &itype{
 		named:   nil,
 		methods: nil,
 		size:    sizeOfMap,
+		kind:    kMap,
 		tflag:   tflagSize,
 		extra: mapType{
 			key:  key,
@@ -281,14 +271,21 @@ func MapOf(key, elem Type) Type {
 const sizeOfPtr = unsafe.Sizeof(new(int))
 
 // PtrTo is analogous to reflect.PtrTo.
-func PtrTo(t Type) Type {
+func PtrTo(elem Type) Type {
+	ielem := elem.(*itype)
+	if ielem.tflag&tflagRType != 0 {
+		return Of(reflect.PtrTo(
+			ielem.extra.(reflect.Type),
+		))
+	}
 	return &itype{
 		named:   nil,
 		methods: nil,
 		size:    sizeOfPtr,
+		kind:    kPtr,
 		tflag:   tflagSize,
 		extra: ptrType{
-			elem: t,
+			elem: elem,
 		},
 	}
 }
@@ -296,28 +293,21 @@ func PtrTo(t Type) Type {
 const sizeOfSlice = unsafe.Sizeof(make([]int, 0))
 
 // SliceOf is analogous to reflect.SliceOf.
-func SliceOf(t Type) Type {
+func SliceOf(elem Type) Type {
+	ielem := elem.(*itype)
+	if ielem.tflag&tflagRType != 0 {
+		return Of(reflect.SliceOf(
+			ielem.extra.(reflect.Type),
+		))
+	}
 	return &itype{
 		named:   nil,
 		methods: nil,
 		size:    sizeOfSlice,
+		kind:    kSlice,
 		tflag:   tflagSize,
 		extra: sliceType{
-			elem: t,
-		},
-	}
-}
-
-// StructOf is analogous to reflect.StructOf.
-func StructOf(fields []StructField) Type {
-	return &itype{
-		named:   nil,
-		methods: nil,
-		size:    0,
-		tflag:   tflag(0),
-		extra: structType{
-			// safety: make a copy of fields[]
-			fields: append([]StructField{}, fields...),
+			elem: elem,
 		},
 	}
 }
