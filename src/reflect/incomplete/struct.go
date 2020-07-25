@@ -6,6 +6,10 @@ package incomplete
 
 import "reflect"
 
+type structType struct {
+	fields []StructField
+}
+
 // StructField is analogous to reflect.StructField, minus the Index and Offset
 // fields.
 type StructField struct {
@@ -19,7 +23,7 @@ func (field *StructField) toReflect() reflect.StructField {
 	return reflect.StructField{
 		Name:      field.Name,
 		PkgPath:   field.PkgPath,
-		Type:      field.Type.(*itype).extra.(reflect.Type),
+		Type:      field.Type.(*itype).info.(reflect.Type),
 		Tag:       field.Tag,
 		Offset:    0,
 		Index:     nil,
@@ -46,7 +50,7 @@ func StructOf(fields []StructField) Type {
 		size:    0,
 		kind:    kStruct,
 		tflag:   tflag(0),
-		extra: structType{
+		info: structType{
 			// safety: make a copy of fields[]
 			fields: append(([]StructField)(nil), fields...),
 		},

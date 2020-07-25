@@ -99,9 +99,9 @@ type itype struct {
 	size    uintptr
 	kind    kind
 	tflag   tflag
-	// nil or one of: reflect.Type, arrayType, chanType, funcType,
+	// nil or one of: reflect.Type, *itype, arrayType, chanType, funcType,
 	// interfaceType, mapType, ptrType, sliceType, structType
-	extra interface{}
+	info interface{}
 }
 
 // namedType contains the name, pkgPath and methods for named types
@@ -133,13 +133,18 @@ type sliceType struct {
 	elem Type
 }
 
-type structType struct {
-	fields []StructField
-}
-
 // itype methods
 func (t *itype) Define(u Type) {
-	panic("unimplemented: incomplete.Type.Define()")
+	if t.tflag&tflagDefined != 0 {
+		panic("incomplete.Type.Define() already invoked on this type")
+	}
+	if t.named == nil || t.info != nil {
+		panic("incomplete.Type.Define() on Type not created with NamedOf")
+	}
+	t.info = u.(*itype)
+	descendType(t)
+	computeSize(t, nil)
+	t.tflag |= tflagDefined
 }
 
 func (t *itype) AddMethod(mtd Method) {
@@ -147,6 +152,27 @@ func (t *itype) AddMethod(mtd Method) {
 }
 
 func (t *itype) isType() {
+}
+
+func descendType(t *itype) {
+	next := func(ityp *itype) *itype {
+		var ret *itype
+		if ityp != nil {
+			ret, _ = ityp.info.(*itype)
+		}
+		return ret
+	}
+	t1, t2, last := t, t, t
+	for t1 != nil {
+		last = t1
+		t1 = next(t1)
+		t2 = next(next(t2))
+		if t1 == t2 {
+			t.info = nil
+			panic("incomplete.Type.Define(): invalid Type loop")
+		}
+	}
+	t.info = last
 }
 
 // ofMap is the cache for Of.
@@ -170,8 +196,8 @@ func Of(rtyp reflect.Type) Type {
 		methods: methodsFromReflect(rtyp),
 		size:    rtyp.Size(),
 		kind:    kind(rtyp.Kind()),
-		tflag:   tflagSize | tflagDefined,
-		extra:   rtyp,
+		tflag:   tflagRType | tflagSize,
+		info:    rtyp,
 	}
 	t, _ := ofMap.LoadOrStore(rtyp, &ityp)
 	return t.(*itype)
@@ -189,7 +215,7 @@ func NamedOf(name, pkgPath string) Type {
 		size:    0,
 		kind:    kInvalid,
 		tflag:   tflag(0),
-		extra:   nil,
+		info:    nil,
 	}
 }
 
@@ -203,7 +229,7 @@ func ArrayOf(count int, elem Type) Type {
 	if ielem.tflag&tflagRType != 0 {
 		return Of(reflect.ArrayOf(
 			count,
-			ielem.extra.(reflect.Type),
+			ielem.info.(reflect.Type),
 		))
 	}
 	return &itype{
@@ -212,7 +238,7 @@ func ArrayOf(count int, elem Type) Type {
 		size:    uintptr(count) * ielem.size,
 		kind:    kArray,
 		tflag:   ielem.tflag & tflagSize,
-		extra: arrayType{
+		info: arrayType{
 			elem:  elem,
 			count: count,
 		},
@@ -227,7 +253,7 @@ func ChanOf(dir reflect.ChanDir, elem Type) Type {
 	if ielem.tflag&tflagRType != 0 {
 		return Of(reflect.ChanOf(
 			dir,
-			ielem.extra.(reflect.Type),
+			ielem.info.(reflect.Type),
 		))
 	}
 	return &itype{
@@ -236,7 +262,7 @@ func ChanOf(dir reflect.ChanDir, elem Type) Type {
 		size:    sizeOfChan,
 		kind:    kChan,
 		tflag:   tflagSize,
-		extra: chanType{
+		info: chanType{
 			elem: elem,
 			dir:  dir,
 		},
@@ -251,8 +277,8 @@ func MapOf(key, elem Type) Type {
 	ielem := elem.(*itype)
 	if ikey.tflag&ielem.tflag&tflagRType != 0 {
 		return Of(reflect.MapOf(
-			ikey.extra.(reflect.Type),
-			ielem.extra.(reflect.Type),
+			ikey.info.(reflect.Type),
+			ielem.info.(reflect.Type),
 		))
 	}
 	return &itype{
@@ -261,7 +287,7 @@ func MapOf(key, elem Type) Type {
 		size:    sizeOfMap,
 		kind:    kMap,
 		tflag:   tflagSize,
-		extra: mapType{
+		info: mapType{
 			key:  key,
 			elem: elem,
 		},
@@ -275,7 +301,7 @@ func PtrTo(elem Type) Type {
 	ielem := elem.(*itype)
 	if ielem.tflag&tflagRType != 0 {
 		return Of(reflect.PtrTo(
-			ielem.extra.(reflect.Type),
+			ielem.info.(reflect.Type),
 		))
 	}
 	return &itype{
@@ -284,7 +310,7 @@ func PtrTo(elem Type) Type {
 		size:    sizeOfPtr,
 		kind:    kPtr,
 		tflag:   tflagSize,
-		extra: ptrType{
+		info: ptrType{
 			elem: elem,
 		},
 	}
@@ -297,7 +323,7 @@ func SliceOf(elem Type) Type {
 	ielem := elem.(*itype)
 	if ielem.tflag&tflagRType != 0 {
 		return Of(reflect.SliceOf(
-			ielem.extra.(reflect.Type),
+			ielem.info.(reflect.Type),
 		))
 	}
 	return &itype{
@@ -306,7 +332,7 @@ func SliceOf(elem Type) Type {
 		size:    sizeOfSlice,
 		kind:    kSlice,
 		tflag:   tflagSize,
-		extra: sliceType{
+		info: sliceType{
 			elem: elem,
 		},
 	}

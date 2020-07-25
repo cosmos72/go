@@ -4,10 +4,16 @@
 
 package incomplete
 
+import (
+	"unsafe"
+)
+
 type interfaceType struct {
 	embedded []Type
 	methods  []Method
 }
+
+const sizeOfInterface = unsafe.Sizeof((interface{})(nil))
 
 // InterfaceOf returns an incomplete interface type with the given list of
 // named interface types. InterfaceOf panics if one of the given embedded types
@@ -19,10 +25,10 @@ func InterfaceOf(embedded []Type) Type {
 	return &itype{
 		named:   nil,
 		methods: nil,
-		size:    0, // size of interfaces can vary?
+		size:    sizeOfInterface,
 		kind:    kInterface,
-		tflag:   tflag(0),
-		extra: interfaceType{
+		tflag:   tflagSize,
+		info: interfaceType{
 			// safety: make a copy of embedded[]
 			embedded: append(([]Type)(nil), embedded...),
 		},

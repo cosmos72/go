@@ -35,7 +35,7 @@ func FuncOf(in, out []Type, variadic bool) Type {
 		size:    sizeOfFunc,
 		kind:    kFunc,
 		tflag:   tflagSize,
-		extra: funcType{
+		info: funcType{
 			// safety: make a copy of in[] and out[]
 			in:       append(([]Type)(nil), in...),
 			out:      append(([]Type)(nil), out...),
@@ -56,11 +56,11 @@ func allTypesHaveReflectType(types []Type) bool {
 func reflectFuncOf(in []Type, out []Type, variadic bool) reflect.Type {
 	rin := make([]reflect.Type, len(in))
 	for i, t := range in {
-		rin[i] = t.(*itype).extra.(reflect.Type)
+		rin[i] = t.(*itype).info.(reflect.Type)
 	}
 	rout := make([]reflect.Type, len(out))
 	for i, t := range out {
-		rout[i] = t.(*itype).extra.(reflect.Type)
+		rout[i] = t.(*itype).info.(reflect.Type)
 	}
 	return reflect.FuncOf(rin, rout, variadic)
 }
