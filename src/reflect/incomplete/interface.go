@@ -8,7 +8,7 @@ import (
 	"unsafe"
 )
 
-type interfaceType struct {
+type iInterfaceType struct {
 	embedded []Type
 	methods  []Method
 }
@@ -25,10 +25,12 @@ func InterfaceOf(embedded []Type) Type {
 	return &itype{
 		named:   nil,
 		methods: nil,
-		size:    sizeOfInterface,
-		kind:    kInterface,
-		tflag:   tflagSize,
-		info: interfaceType{
+		iflag:   iflagSize,
+		incomplete: &rtype{
+			size: sizeOfInterface,
+			kind: kInterface,
+		},
+		info: iInterfaceType{
 			// safety: make a copy of embedded[]
 			embedded: append(([]Type)(nil), embedded...),
 		},

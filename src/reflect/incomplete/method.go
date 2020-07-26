@@ -19,10 +19,6 @@ type Method struct {
 }
 
 func methodsFromReflect(rtyp reflect.Type) *[]Method {
-	if rtyp.Kind() != reflect.Ptr && rtyp.Kind() != reflect.Interface {
-		// TODO distinguish methods with value receiver and pointer receiver
-		rtyp = reflect.PtrTo(rtyp)
-	}
 	n := rtyp.NumMethod()
 	if n == 0 {
 		return nil
@@ -37,6 +33,6 @@ func methodsFromReflect(rtyp reflect.Type) *[]Method {
 func (mtd *Method) fromReflect(rmethod reflect.Method) {
 	mtd.Name = rmethod.Name
 	mtd.PkgPath = rmethod.PkgPath
-	mtd.Type = Of(rmethod.Type) // TODO avoid infinite recursion
+	mtd.Type = of(rmethod.Type)
 	// mtd.Index = rmethod.Index
 }

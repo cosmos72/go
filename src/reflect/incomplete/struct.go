@@ -4,9 +4,13 @@
 
 package incomplete
 
-import "reflect"
+import (
+	"reflect"
+	"strconv"
+	_ "unsafe" // needed by go:linkname
+)
 
-type structType struct {
+type iStructType struct {
 	fields []StructField
 }
 
@@ -23,7 +27,7 @@ func (field *StructField) toReflect() reflect.StructField {
 	return reflect.StructField{
 		Name:      field.Name,
 		PkgPath:   field.PkgPath,
-		Type:      field.Type.(*itype).info.(reflect.Type),
+		Type:      field.Type.(*itype).complete,
 		Tag:       field.Tag,
 		Offset:    0,
 		Index:     nil,
@@ -33,29 +37,41 @@ func (field *StructField) toReflect() reflect.StructField {
 
 // StructOf is analogous to reflect.StructOf.
 func StructOf(fields []StructField) Type {
-	ok := true
-	for _, field := range fields {
-		ityp := field.Type.(*itype)
-		if ityp.tflag&tflagRType == 0 {
-			ok = false
+	complete := true
+	for i, field := range fields {
+		if field.Name == "" {
+			panic("incomplete.StructOf: field " + strconv.Itoa(i) + " has no name")
+		}
+		if !isValidFieldName(field.Name) {
+			panic("incomplete.StructOf: field " + strconv.Itoa(i) + " has invalid name")
+		}
+		if field.Type == nil {
+			panic("incomplete.StructOf: field " + strconv.Itoa(i) + " has no type")
+		}
+		if field.Type.(*itype).complete == nil {
+			complete = false
 			break
 		}
 	}
-	if ok {
+	if complete {
 		return Of(reflectStructOf(fields))
 	}
 	return &itype{
 		named:   nil,
 		methods: nil,
-		size:    0,
-		kind:    kStruct,
-		tflag:   tflag(0),
-		info: structType{
+		iflag:   iflag(0),
+		incomplete: &rtype{
+			kind: kStruct,
+		},
+		info: iStructType{
 			// safety: make a copy of fields[]
 			fields: append(([]StructField)(nil), fields...),
 		},
 	}
 }
+
+//go:linkname isValidFieldName reflect.isValidFieldName
+func isValidFieldName(fieldName string) bool
 
 func reflectStructOf(fields []StructField) reflect.Type {
 	rfields := make([]reflect.StructField, len(fields))

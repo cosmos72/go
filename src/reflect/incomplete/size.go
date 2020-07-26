@@ -15,43 +15,47 @@ func push(t *itype, work map[*itype]struct{}) map[*itype]struct{} {
 }
 
 func computeSize(t *itype, work map[*itype]struct{}) {
-	if t.tflag&tflagSize != 0 {
+	if t.iflag&iflagSize != 0 {
 		return
 	}
 	push(t, work)
-	switch t.kind {
+	if t.incomplete == nil {
+		t.incomplete = &rtype{}
+	}
+	switch t.kind() {
 	case kInvalid:
 		if u, _ := t.info.(*itype); u != nil {
 			computeSize(u, work)
-			if u.tflag&tflagSize != 0 {
-				t.size = u.size
-				t.tflag |= tflagSize
+			if u.iflag&iflagSize != 0 {
+				t.incomplete.size = u.incomplete.size
+				t.iflag |= iflagSize
 			}
 		}
 	case kArray:
-		a := t.info.(arrayType)
+		a := t.info.(iArrayType)
 		ielem := a.elem.(*itype)
 		computeSize(ielem, work)
-		if ielem.tflag&tflagSize != 0 {
-			t.size = uintptr(a.count) * ielem.size
-			t.tflag |= tflagSize
+		if ielem.iflag&iflagSize != 0 {
+			t.incomplete.size = uintptr(a.count) * ielem.size()
+			t.iflag |= iflagSize
 		}
 	case kStruct:
-		s := t.info.(structType)
+		s := t.info.(iStructType)
 		size := uintptr(0)
 		ok := true
 		for _, field := range s.fields {
 			ityp := field.Type.(*itype)
 			computeSize(ityp, work)
-			if ityp.tflag&tflagSize != 0 {
-				size += ityp.size
+			if ityp.iflag&iflagSize != 0 {
+				// TODO also consider alignment
+				size += ityp.size()
 			} else {
 				ok = false
 			}
 		}
 		if ok {
-			t.size = size
-			t.tflag |= tflagSize
+			t.incomplete.size = size
+			t.iflag |= iflagSize
 		}
 	default:
 		panic("internal error: Type has unknown size")

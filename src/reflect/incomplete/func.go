@@ -9,7 +9,7 @@ import (
 	"unsafe"
 )
 
-type funcType struct {
+type iFuncType struct {
 	in       []Type
 	out      []Type
 	variadic bool
@@ -20,22 +20,23 @@ const sizeOfFunc = unsafe.Sizeof(func() {})
 // FuncOf is analogous to reflect.FuncOf.
 func FuncOf(in, out []Type, variadic bool) Type {
 	nin := len(in)
-	if variadic && (nin == 0 ||
-		(in[nin-1].(*itype).kind != kInvalid &&
-			in[nin-1].(*itype).kind != kSlice)) {
+	if variadic && (nin == 0 || in[nin-1] == nil ||
+		(in[nin-1].kind() != kInvalid && in[nin-1].kind() != kSlice)) {
 
 		panic("incomplete.FuncOf: last arg of variadic func must be slice")
 	}
-	if allTypesHaveReflectType(in) && allTypesHaveReflectType(out) {
+	if allTypesAreComplete(in) && allTypesAreComplete(out) {
 		return Of(reflectFuncOf(in, out, variadic))
 	}
 	return &itype{
 		named:   nil,
 		methods: nil,
-		size:    sizeOfFunc,
-		kind:    kFunc,
-		tflag:   tflagSize,
-		info: funcType{
+		iflag:   iflagSize,
+		incomplete: &rtype{
+			size: sizeOfFunc,
+			kind: kFunc,
+		},
+		info: iFuncType{
 			// safety: make a copy of in[] and out[]
 			in:       append(([]Type)(nil), in...),
 			out:      append(([]Type)(nil), out...),
@@ -44,9 +45,9 @@ func FuncOf(in, out []Type, variadic bool) Type {
 	}
 }
 
-func allTypesHaveReflectType(types []Type) bool {
+func allTypesAreComplete(types []Type) bool {
 	for _, t := range types {
-		if t.(*itype).tflag&tflagRType == 0 {
+		if t.(*itype).complete == nil {
 			return false
 		}
 	}
@@ -56,11 +57,11 @@ func allTypesHaveReflectType(types []Type) bool {
 func reflectFuncOf(in []Type, out []Type, variadic bool) reflect.Type {
 	rin := make([]reflect.Type, len(in))
 	for i, t := range in {
-		rin[i] = t.(*itype).info.(reflect.Type)
+		rin[i] = t.(*itype).complete
 	}
 	rout := make([]reflect.Type, len(out))
 	for i, t := range out {
-		rout[i] = t.(*itype).info.(reflect.Type)
+		rout[i] = t.(*itype).complete
 	}
 	return reflect.FuncOf(rin, rout, variadic)
 }
