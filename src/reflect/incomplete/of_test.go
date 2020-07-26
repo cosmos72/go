@@ -22,8 +22,15 @@ func TestOf(t *testing.T) {
 	for x := range vals {
 		rt := reflect.TypeOf(x)
 		actual := Of(rt)
+		var named *namedType
+		if rt.Name() != "" {
+			named = &namedType{
+				name:    rt.Name(),
+				pkgPath: rt.PkgPath(),
+			}
+		}
 		expected := &itype{
-			named:    &namedType{name: rt.Name(), pkgPath: rt.PkgPath()},
+			named:    named,
 			iflag:    iflagSize,
 			complete: rt,
 		}
