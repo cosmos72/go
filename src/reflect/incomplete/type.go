@@ -96,7 +96,7 @@ const (
 // itype is the implementation of Type
 type itype struct {
 	named      *namedType
-	methods    *[]Method
+	method     *[]Method
 	str        string
 	iflag      iflag
 	incomplete *rtype
@@ -256,7 +256,7 @@ func of(rtyp reflect.Type) Type {
 	}
 	ofMap[rtyp] = ityp
 	// convert methods after updating cache - avoids infinite recursion
-	ityp.methods = methodsFromReflect(rtyp)
+	ityp.method = methodsFromReflect(rtyp)
 	return ityp
 }
 
@@ -281,10 +281,10 @@ func NamedOf(name, pkgPath string) Type {
 			name:    name,
 			pkgPath: pkgPath,
 		},
-		methods: nil,
-		str:     str,
-		iflag:   0,
-		info:    nil,
+		method: nil,
+		str:    str,
+		iflag:  0,
+		info:   nil,
 	}
 }
 
@@ -299,10 +299,10 @@ func ArrayOf(count int, elem Type) Type {
 		return Of(reflect.ArrayOf(count, ielem.complete))
 	}
 	return &itype{
-		named:   nil,
-		methods: nil,
-		str:     "[" + strconv.Itoa(count) + "]" + ielem.string(),
-		iflag:   ielem.iflag & iflagSize,
+		named:  nil,
+		method: nil,
+		str:    "[" + strconv.Itoa(count) + "]" + ielem.string(),
+		iflag:  ielem.iflag & iflagSize,
 		incomplete: &rtype{
 			size: uintptr(count) * ielem.size(),
 			kind: kArray,
@@ -325,7 +325,7 @@ func ChanOf(dir reflect.ChanDir, elem Type) Type {
 	incomplete := *rtypeChan
 	return &itype{
 		named:      nil,
-		methods:    nil,
+		method:     nil,
 		str:        "chan " + ielem.string(),
 		iflag:      iflagSize,
 		incomplete: &incomplete,
@@ -348,7 +348,7 @@ func MapOf(key, elem Type) Type {
 	incomplete := *rtypeMap
 	return &itype{
 		named:      nil,
-		methods:    nil,
+		method:     nil,
 		str:        "map[" + ikey.string() + "]" + ielem.string(),
 		iflag:      iflagSize,
 		incomplete: &incomplete,
@@ -370,7 +370,7 @@ func PtrTo(elem Type) Type {
 	incomplete := *rtypePtr
 	return &itype{
 		named:      nil,
-		methods:    nil,
+		method:     nil,
 		str:        "*" + ielem.string(),
 		iflag:      iflagSize,
 		incomplete: &incomplete,
@@ -391,7 +391,7 @@ func SliceOf(elem Type) Type {
 	incomplete := *rtypeSlice
 	return &itype{
 		named:      nil,
-		methods:    nil,
+		method:     nil,
 		str:        "[]" + ielem.string(),
 		incomplete: &incomplete,
 		iflag:      iflagSize,

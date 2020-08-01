@@ -54,10 +54,8 @@ func StructOf(fields []StructField) Type {
 			complete = false
 			break
 		}
-		str = append(str, sep...)
-		str = append(str, field.Name...)
-		str = append(str, ' ')
-		str = append(str, field.Type.string()...)
+		str = append(append(append(append(str,
+			sep...), field.Name...), ' '), field.Type.string()...)
 		sep = "; "
 	}
 	if complete {
@@ -70,7 +68,7 @@ func StructOf(fields []StructField) Type {
 	}
 	return &itype{
 		named:   nil,
-		methods: nil,
+		method: nil,
 		str:     string(str),
 		iflag:   iflag(0),
 		incomplete: &rtype{

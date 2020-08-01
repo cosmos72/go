@@ -10,10 +10,11 @@ import (
 	"unsafe"
 )
 
-func compare(t *testing.T, actual interface{}, expected interface{}) {
-	if !reflect.DeepEqual(actual, expected) {
-		t.Errorf("\n\texpected\t%+v\n\tactual\t%+v", expected, actual)
+func compare(t *testing.T, actual Type, expected Type) {
+	if reflect.DeepEqual(actual, expected) {
+		return
 	}
+	t.Errorf("\n\texpected\t%+v\n\tactual\t%+v", expected, actual)
 }
 
 var values = []interface{}{
@@ -51,6 +52,21 @@ func TestChanOf(t *testing.T) {
 	}
 }
 
+func TestInterfaceOf(t *testing.T) {
+	actual := InterfaceOf(nil)
+	expected := &itype{
+		iflag: iflagSize,
+		incomplete: &rtype{
+			kind:       kInterface,
+			size:       rtypeInterface.size,
+			align:      rtypeInterface.align,
+			fieldAlign: rtypeInterface.fieldAlign,
+		},
+		info: iInterfaceType{},
+	}
+	compare(t, actual, expected)
+}
+
 func TestMapOf(t *testing.T) {
 	for _, x := range values {
 		rt := reflect.TypeOf(x)
@@ -63,32 +79,6 @@ func TestMapOf(t *testing.T) {
 			str:      "map[" + rt.String() + "]" + rt.String(),
 			iflag:    iflagSize,
 			complete: reflect.MapOf(rt, rt),
-		}
-		compare(t, actual, expected)
-	}
-}
-
-func TestPtrTo(t *testing.T) {
-	for _, x := range values {
-		rt := reflect.TypeOf(x)
-		actual := PtrTo(Of(rt))
-		expected := &itype{
-			str:      "*" + rt.String(),
-			iflag:    iflagSize,
-			complete: reflect.PtrTo(rt),
-		}
-		compare(t, actual, expected)
-	}
-}
-
-func TestSliceOf(t *testing.T) {
-	for _, x := range values {
-		rt := reflect.TypeOf(x)
-		actual := SliceOf(Of(rt))
-		expected := &itype{
-			str:      "[]" + rt.String(),
-			iflag:    iflagSize,
-			complete: reflect.SliceOf(rt),
 		}
 		compare(t, actual, expected)
 	}
@@ -138,7 +128,7 @@ func TestOfWithMethods(t *testing.T) {
 	actual := Of(rt)
 	expected := &itype{
 		named: &namedType{name: rt.Name(), pkgPath: rt.PkgPath()},
-		methods: &[]Method{
+		method: &[]Method{
 			Method{
 				Name:    "String",
 				PkgPath: "",
@@ -154,6 +144,32 @@ func TestOfWithMethods(t *testing.T) {
 		complete: rt,
 	}
 	compare(t, actual, expected)
+}
+
+func TestPtrTo(t *testing.T) {
+	for _, x := range values {
+		rt := reflect.TypeOf(x)
+		actual := PtrTo(Of(rt))
+		expected := &itype{
+			str:      "*" + rt.String(),
+			iflag:    iflagSize,
+			complete: reflect.PtrTo(rt),
+		}
+		compare(t, actual, expected)
+	}
+}
+
+func TestSliceOf(t *testing.T) {
+	for _, x := range values {
+		rt := reflect.TypeOf(x)
+		actual := SliceOf(Of(rt))
+		expected := &itype{
+			str:      "[]" + rt.String(),
+			iflag:    iflagSize,
+			complete: reflect.SliceOf(rt),
+		}
+		compare(t, actual, expected)
+	}
 }
 
 func TestStructOf(t *testing.T) {
