@@ -31,9 +31,10 @@ func TestArrayOf(t *testing.T) {
 		rt := reflect.TypeOf(x)
 		actual := ArrayOf(1, Of(rt))
 		expected := &itype{
-			str:      "[1]" + rt.String(),
-			iflag:    iflagSize,
-			complete: reflect.ArrayOf(1, rt),
+			str:        "[1]" + rt.String(),
+			comparable: makeTribool(rt.Comparable()),
+			iflag:      iflagSize,
+			complete:   reflect.ArrayOf(1, rt),
 		}
 		compare(t, actual, expected)
 	}
@@ -44,9 +45,10 @@ func TestChanOf(t *testing.T) {
 		rt := reflect.TypeOf(x)
 		actual := ChanOf(reflect.BothDir, Of(rt))
 		expected := &itype{
-			str:      "chan " + rt.String(),
-			iflag:    iflagSize,
-			complete: reflect.ChanOf(reflect.BothDir, rt),
+			str:        "chan " + rt.String(),
+			comparable: ttrue,
+			iflag:      iflagSize,
+			complete:   reflect.ChanOf(reflect.BothDir, rt),
 		}
 		compare(t, actual, expected)
 	}
@@ -60,9 +62,10 @@ func TestFuncOf(t *testing.T) {
 		itslice := []Type{it}
 		actual := FuncOf(itslice, itslice, false)
 		expected := &itype{
-			str:      "func(" + rt.String() + ") " + rt.String(),
-			iflag:    iflagSize,
-			complete: reflect.FuncOf(rtslice, rtslice, false),
+			str:        "func(" + rt.String() + ") " + rt.String(),
+			comparable: tfalse,
+			iflag:      iflagSize,
+			complete:   reflect.FuncOf(rtslice, rtslice, false),
 		}
 		compare(t, actual, expected)
 	}
@@ -71,7 +74,8 @@ func TestFuncOf(t *testing.T) {
 func TestInterfaceOf(t *testing.T) {
 	actual := InterfaceOf(nil)
 	expected := &itype{
-		iflag: iflagSize,
+		comparable: ttrue,
+		iflag:      iflagSize,
 		incomplete: &rtype{
 			size:       rtypeInterface.size,
 			align:      rtypeInterface.align,
@@ -92,9 +96,10 @@ func TestMapOf(t *testing.T) {
 		it := Of(rt)
 		actual := MapOf(it, it)
 		expected := &itype{
-			str:      "map[" + rt.String() + "]" + rt.String(),
-			iflag:    iflagSize,
-			complete: reflect.MapOf(rt, rt),
+			str:        "map[" + rt.String() + "]" + rt.String(),
+			comparable: tfalse,
+			iflag:      iflagSize,
+			complete:   reflect.MapOf(rt, rt),
 		}
 		compare(t, actual, expected)
 	}
@@ -104,9 +109,10 @@ func TestNamedOf(t *testing.T) {
 	name, pkgPath := "foo", "my/pkg/path"
 	actual := NamedOf(name, pkgPath)
 	expected := &itype{
-		named: &namedType{name: name, pkgPath: pkgPath},
-		str:   pkgPath + "." + name,
-		iflag: 0,
+		named:      &namedType{name: name, pkgPath: pkgPath},
+		str:        pkgPath + "." + name,
+		comparable: tunknown,
+		iflag:      0,
 	}
 	compare(t, actual, expected)
 }
@@ -123,10 +129,11 @@ func TestOf(t *testing.T) {
 			}
 		}
 		expected := &itype{
-			str:      rt.String(),
-			named:    named,
-			iflag:    iflagSize,
-			complete: rt,
+			str:        rt.String(),
+			named:      named,
+			comparable: makeTribool(rt.Comparable()),
+			iflag:      iflagSize,
+			complete:   rt,
 		}
 		compare(t, actual, expected)
 	}
@@ -149,15 +156,17 @@ func TestOfWithMethods(t *testing.T) {
 				Name:    "String",
 				PkgPath: "",
 				Type: &itype{
-					str:      reflect.TypeOf(dummy.String).String(),
-					iflag:    iflagSize,
-					complete: reflect.TypeOf(dummy.String),
+					str:        reflect.TypeOf(dummy.String).String(),
+					comparable: tfalse,
+					iflag:      iflagSize,
+					complete:   reflect.TypeOf(dummy.String),
 				},
 			},
 		},
-		str:      rt.String(),
-		iflag:    iflagSize,
-		complete: rt,
+		str:        rt.String(),
+		comparable: makeTribool(rt.Comparable()),
+		iflag:      iflagSize,
+		complete:   rt,
 	}
 	compare(t, actual, expected)
 }
@@ -167,9 +176,10 @@ func TestPtrTo(t *testing.T) {
 		rt := reflect.TypeOf(x)
 		actual := PtrTo(Of(rt))
 		expected := &itype{
-			str:      "*" + rt.String(),
-			iflag:    iflagSize,
-			complete: reflect.PtrTo(rt),
+			str:        "*" + rt.String(),
+			comparable: ttrue,
+			iflag:      iflagSize,
+			complete:   reflect.PtrTo(rt),
 		}
 		compare(t, actual, expected)
 	}
@@ -180,9 +190,10 @@ func TestSliceOf(t *testing.T) {
 		rt := reflect.TypeOf(x)
 		actual := SliceOf(Of(rt))
 		expected := &itype{
-			str:      "[]" + rt.String(),
-			iflag:    iflagSize,
-			complete: reflect.SliceOf(rt),
+			str:        "[]" + rt.String(),
+			comparable: tfalse,
+			iflag:      iflagSize,
+			complete:   reflect.SliceOf(rt),
 		}
 		compare(t, actual, expected)
 	}
@@ -200,9 +211,10 @@ func TestStructOf(t *testing.T) {
 		{Name: "Second", Type: fieldrt},
 	})
 	expected := &itype{
-		str:      rt.String(),
-		iflag:    iflagSize,
-		complete: rt,
+		str:        rt.String(),
+		comparable: makeTribool(fieldrt.Comparable()),
+		iflag:      iflagSize,
+		complete:   rt,
 	}
 	compare(t, actual, expected)
 }

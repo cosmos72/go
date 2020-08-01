@@ -37,8 +37,9 @@ func (field *StructField) toReflect() reflect.StructField {
 
 // StructOf is analogous to reflect.StructOf.
 func StructOf(fields []StructField) Type {
-	var str = []byte("struct ")
+	var bytes = []byte("struct ")
 	sep := "{ "
+	comparable := ttrue
 	complete := true
 	for i, field := range fields {
 		if field.Name == "" {
@@ -54,7 +55,9 @@ func StructOf(fields []StructField) Type {
 			complete = false
 			break
 		}
-		str = append(append(append(append(str,
+		comparable = andTribool(comparable, field.Type.(*itype).comparable)
+
+		bytes = append(append(append(append(bytes,
 			sep...), field.Name...), ' '), field.Type.string()...)
 		sep = "; "
 	}
@@ -62,15 +65,16 @@ func StructOf(fields []StructField) Type {
 		return Of(reflectStructOf(fields))
 	}
 	if len(fields) == 0 {
-		str = append(str, "{}"...)
+		bytes = append(bytes, "{}"...)
 	} else {
-		str = append(str, " }"...)
+		bytes = append(bytes, " }"...)
 	}
 	return &itype{
-		named:   nil,
-		method: nil,
-		str:     string(str),
-		iflag:   iflag(0),
+		named:      nil,
+		method:     nil,
+		str:        string(bytes),
+		comparable: comparable,
+		iflag:      iflag(0),
 		incomplete: &rtype{
 			kind: kStruct,
 		},

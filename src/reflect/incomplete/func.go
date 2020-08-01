@@ -28,9 +28,10 @@ func FuncOf(in, out []Type, variadic bool) Type {
 		return Of(reflectFuncOf(in, out, variadic))
 	}
 	return &itype{
-		named:  nil,
-		method: nil,
-		iflag:  iflagSize,
+		named:      nil,
+		method:     nil,
+		comparable: tfalse,
+		iflag:      iflagSize,
 		incomplete: &rtype{
 			size:       rtypeFunc.size,
 			align:      rtypeFunc.align,

@@ -22,9 +22,10 @@ var rtypeInterface *rtype = unwrap(reflect.TypeOf((*interface{})(nil)).Elem())
 // Explicit methods can be added with AddMethod.
 func InterfaceOf(embedded []Type) Type {
 	return &itype{
-		named:  nil,
-		method: nil,
-		iflag:  iflagSize,
+		named:      nil,
+		method:     nil,
+		comparable: ttrue,
+		iflag:      iflagSize,
 		incomplete: &rtype{
 			size:       rtypeInterface.size,
 			align:      rtypeInterface.align,

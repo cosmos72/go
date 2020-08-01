@@ -6,6 +6,7 @@ package incomplete
 
 import (
 	"reflect"
+	"strconv"
 )
 
 // Complete completes the incomplete types in in, transforming them to a list
@@ -20,5 +21,15 @@ func Complete(
 	method func(out []reflect.Type, index int, stub Method) interface{},
 ) []reflect.Type {
 
-	panic("unimplemented: incomplete.Complete()")
+	for _, t := range in {
+		computeSize(t.(*itype), nil)
+	}
+	for i, t := range in {
+		if t.(*itype).iflag&iflagSize == 0 {
+			panic("incomplete.Complete: type " + strconv.Itoa(i) +
+				" depends on a named type with no underlying type")
+		}
+	}
+	// panic("unimplemented: incomplete.Complete()")
+	return nil
 }
