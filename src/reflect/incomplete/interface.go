@@ -26,10 +26,10 @@ func InterfaceOf(embedded []Type) Type {
 		method: nil,
 		iflag:  iflagSize,
 		incomplete: &rtype{
-			kind:       kInterface,
 			size:       rtypeInterface.size,
 			align:      rtypeInterface.align,
 			fieldAlign: rtypeInterface.fieldAlign,
+			kind:       kInterface,
 		},
 		info: iInterfaceType{
 			// safety: make a copy of embedded[]

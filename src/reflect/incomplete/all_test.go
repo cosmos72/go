@@ -52,15 +52,31 @@ func TestChanOf(t *testing.T) {
 	}
 }
 
+func TestFuncOf(t *testing.T) {
+	for _, x := range values {
+		rt := reflect.TypeOf(x)
+		rtslice := []reflect.Type{rt}
+		it := Of(rt)
+		itslice := []Type{it}
+		actual := FuncOf(itslice, itslice, false)
+		expected := &itype{
+			str:      "func(" + rt.String() + ") " + rt.String(),
+			iflag:    iflagSize,
+			complete: reflect.FuncOf(rtslice, rtslice, false),
+		}
+		compare(t, actual, expected)
+	}
+}
+
 func TestInterfaceOf(t *testing.T) {
 	actual := InterfaceOf(nil)
 	expected := &itype{
 		iflag: iflagSize,
 		incomplete: &rtype{
-			kind:       kInterface,
 			size:       rtypeInterface.size,
 			align:      rtypeInterface.align,
 			fieldAlign: rtypeInterface.fieldAlign,
+			kind:       kInterface,
 		},
 		info: iInterfaceType{},
 	}
