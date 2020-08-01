@@ -11,6 +11,7 @@ package incomplete
 
 import (
 	"reflect"
+	"strconv"
 	"sync"
 	"unsafe"
 )
@@ -43,6 +44,9 @@ type Type interface {
 
 	// unexported
 	kind() kind
+
+	// unexported
+	string() string
 }
 
 // analogous to reflect.Kind.
@@ -93,6 +97,7 @@ const (
 type itype struct {
 	named      *namedType
 	methods    *[]Method
+	str        string
 	iflag      iflag
 	incomplete *rtype
 	complete   reflect.Type // nil if not known yet
@@ -146,6 +151,10 @@ func (t *itype) Define(u Type) {
 
 func (t *itype) AddMethod(mtd Method) {
 	panic("unimplemented: incomplete.Type.AddMethod()")
+}
+
+func (t *itype) string() string {
+	return t.str
 }
 
 func (t *itype) kind() kind {
@@ -240,6 +249,7 @@ func of(rtyp reflect.Type) Type {
 	}
 	ityp := &itype{
 		named:    named,
+		str:      rtyp.String(),
 		iflag:    iflagSize,
 		complete: rtyp,
 		info:     nil,
@@ -250,15 +260,29 @@ func of(rtyp reflect.Type) Type {
 	return ityp
 }
 
-// NamedOf creates the incomplete type with the specified name and package path.
-// The name can be bound to an underlying type with the Define method.
+// NamedOf creates a new incomplete type with the specified name and package path.
+// The returned type can be bound to an underlying type calling its Define method.
 func NamedOf(name, pkgPath string) Type {
+	if name == "" {
+		panic("incomplete.NamedOf: empty name")
+	}
+	if !isValidFieldName(name) {
+		panic("incomplete.NamedOf: invalid name")
+	}
+	str := name
+	if pkgPath != "" {
+		str = pkgPath + "." + name
+		// slightly reduce memory usage
+		pkgPath = str[:len(pkgPath)]
+		name = str[1+len(pkgPath):]
+	}
 	return &itype{
 		named: &namedType{
 			name:    name,
 			pkgPath: pkgPath,
 		},
 		methods: nil,
+		str:     str,
 		iflag:   0,
 		info:    nil,
 	}
@@ -277,6 +301,7 @@ func ArrayOf(count int, elem Type) Type {
 	return &itype{
 		named:   nil,
 		methods: nil,
+		str:     "[" + strconv.Itoa(count) + "]" + ielem.string(),
 		iflag:   ielem.iflag & iflagSize,
 		incomplete: &rtype{
 			size: uintptr(count) * ielem.size(),
@@ -301,6 +326,7 @@ func ChanOf(dir reflect.ChanDir, elem Type) Type {
 	return &itype{
 		named:      nil,
 		methods:    nil,
+		str:        "chan " + ielem.string(),
 		iflag:      iflagSize,
 		incomplete: &incomplete,
 		info: iChanType{
@@ -323,6 +349,7 @@ func MapOf(key, elem Type) Type {
 	return &itype{
 		named:      nil,
 		methods:    nil,
+		str:        "map[" + ikey.string() + "]" + ielem.string(),
 		iflag:      iflagSize,
 		incomplete: &incomplete,
 		info: iMapType{
@@ -344,6 +371,7 @@ func PtrTo(elem Type) Type {
 	return &itype{
 		named:      nil,
 		methods:    nil,
+		str:        "*" + ielem.string(),
 		iflag:      iflagSize,
 		incomplete: &incomplete,
 		info: iPtrType{
@@ -364,6 +392,7 @@ func SliceOf(elem Type) Type {
 	return &itype{
 		named:      nil,
 		methods:    nil,
+		str:        "[]" + ielem.string(),
 		incomplete: &incomplete,
 		iflag:      iflagSize,
 		info: iSliceType{

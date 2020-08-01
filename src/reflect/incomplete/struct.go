@@ -37,6 +37,8 @@ func (field *StructField) toReflect() reflect.StructField {
 
 // StructOf is analogous to reflect.StructOf.
 func StructOf(fields []StructField) Type {
+	var str = []byte("struct ")
+	sep := "{ "
 	complete := true
 	for i, field := range fields {
 		if field.Name == "" {
@@ -52,13 +54,24 @@ func StructOf(fields []StructField) Type {
 			complete = false
 			break
 		}
+		str = append(str, sep...)
+		str = append(str, field.Name...)
+		str = append(str, ' ')
+		str = append(str, field.Type.string()...)
+		sep = "; "
 	}
 	if complete {
 		return Of(reflectStructOf(fields))
 	}
+	if len(fields) == 0 {
+		str = append(str, "{}"...)
+	} else {
+		str = append(str, " }"...)
+	}
 	return &itype{
 		named:   nil,
 		methods: nil,
+		str:     string(str),
 		iflag:   iflag(0),
 		incomplete: &rtype{
 			kind: kStruct,

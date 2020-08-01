@@ -30,6 +30,7 @@ func TestArrayOf(t *testing.T) {
 		rt := reflect.TypeOf(x)
 		actual := ArrayOf(1, Of(rt))
 		expected := &itype{
+			str:      "[1]" + rt.String(),
 			iflag:    iflagSize,
 			complete: reflect.ArrayOf(1, rt),
 		}
@@ -42,6 +43,7 @@ func TestChanOf(t *testing.T) {
 		rt := reflect.TypeOf(x)
 		actual := ChanOf(reflect.BothDir, Of(rt))
 		expected := &itype{
+			str:      "chan " + rt.String(),
 			iflag:    iflagSize,
 			complete: reflect.ChanOf(reflect.BothDir, rt),
 		}
@@ -58,6 +60,7 @@ func TestMapOf(t *testing.T) {
 		it := Of(rt)
 		actual := MapOf(it, it)
 		expected := &itype{
+			str:      "map[" + rt.String() + "]" + rt.String(),
 			iflag:    iflagSize,
 			complete: reflect.MapOf(rt, rt),
 		}
@@ -70,6 +73,7 @@ func TestPtrTo(t *testing.T) {
 		rt := reflect.TypeOf(x)
 		actual := PtrTo(Of(rt))
 		expected := &itype{
+			str:      "*" + rt.String(),
 			iflag:    iflagSize,
 			complete: reflect.PtrTo(rt),
 		}
@@ -82,6 +86,7 @@ func TestSliceOf(t *testing.T) {
 		rt := reflect.TypeOf(x)
 		actual := SliceOf(Of(rt))
 		expected := &itype{
+			str:      "[]" + rt.String(),
 			iflag:    iflagSize,
 			complete: reflect.SliceOf(rt),
 		}
@@ -94,6 +99,7 @@ func TestNamedOf(t *testing.T) {
 	actual := NamedOf(name, pkgPath)
 	expected := &itype{
 		named: &namedType{name: name, pkgPath: pkgPath},
+		str:   pkgPath + "." + name,
 		iflag: 0,
 	}
 	compare(t, actual, expected)
@@ -111,6 +117,7 @@ func TestOf(t *testing.T) {
 			}
 		}
 		expected := &itype{
+			str:      rt.String(),
 			named:    named,
 			iflag:    iflagSize,
 			complete: rt,
@@ -136,11 +143,32 @@ func TestOfWithMethods(t *testing.T) {
 				Name:    "String",
 				PkgPath: "",
 				Type: &itype{
+					str:      reflect.TypeOf(dummy.String).String(),
 					iflag:    iflagSize,
 					complete: reflect.TypeOf(dummy.String),
 				},
 			},
 		},
+		str:      rt.String(),
+		iflag:    iflagSize,
+		complete: rt,
+	}
+	compare(t, actual, expected)
+}
+
+func TestStructOf(t *testing.T) {
+	fieldrt := reflect.TypeOf(int(0))
+	fieldt := Of(fieldrt)
+	actual := StructOf([]StructField{
+		{Name: "First", Type: fieldt},
+		{Name: "Second", Type: fieldt},
+	})
+	rt := reflect.StructOf([]reflect.StructField{
+		{Name: "First", Type: fieldrt},
+		{Name: "Second", Type: fieldrt},
+	})
+	expected := &itype{
+		str:      rt.String(),
 		iflag:    iflagSize,
 		complete: rt,
 	}
