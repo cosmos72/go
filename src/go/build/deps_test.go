@@ -99,7 +99,8 @@ var depsRules = `
 	RUNTIME
 	< io;
 
-	reflect !< sort;
+	reflect, reflect/incomplete
+	!< sort;
 
 	# SYSCALL is RUNTIME plus the packages necessary for basic system calls.
 	RUNTIME, unicode/utf8, unicode/utf16, io
@@ -158,7 +159,7 @@ var depsRules = `
 	< io/ioutil, os/exec
 	< OS;
 
-	reflect !< OS;
+	reflect	!< OS;
 
 	OS
 	< golang.org/x/sys/cpu, internal/goroot;
@@ -167,6 +168,9 @@ var depsRules = `
 	# It does not include package log, which should be avoided in core packages.
 	strconv, unicode
 	< reflect;
+	
+	reflect 
+	< reflect/incomplete;
 
 	os, reflect
 	< internal/fmtsort
