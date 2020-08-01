@@ -216,5 +216,10 @@ func newName(n, tag string, exported bool) name
 //go:linkname wrap reflect.toType
 func wrap(t *rtype) reflect.Type
 
+/*
 //go:linkname unwrap reflect.unwrap
 func unwrap(t reflect.Type) *rtype
+*/
+func unwrap(t reflect.Type) *rtype {
+	return *(**rtype)(unsafe.Pointer(&t))
+}

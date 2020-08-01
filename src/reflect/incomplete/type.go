@@ -259,7 +259,7 @@ func NamedOf(name, pkgPath string) Type {
 			pkgPath: pkgPath,
 		},
 		methods: nil,
-		iflag:   iflag(0),
+		iflag:   0,
 		info:    nil,
 	}
 }

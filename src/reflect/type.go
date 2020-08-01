@@ -2967,14 +2967,6 @@ func toType(t *rtype) Type {
 	return t
 }
 
-// used by reflect/incomplete
-func unwrap(t Type) *rtype {
-	if t == nil {
-		return nil
-	}
-	return t.(*rtype)
-}
-
 type layoutKey struct {
 	ftyp *funcType // function signature
 	rcvr *rtype    // receiver type, or nil if none
