@@ -85,7 +85,7 @@ const (
 	// iflagDefined means Define was called on the type
 	iflagDefined iflag = 1 << 0
 
-	// iflagSize means the type has known size.
+	// iflagSize means the type has known size, align and fieldAlign
 	iflagSize iflag = 1 << 1
 )
 
@@ -166,7 +166,31 @@ func (t *itype) size() uintptr {
 	} else if t.incomplete != nil {
 		return t.incomplete.size
 	} else {
-		panic("internal error: Type size should be known, but it is not")
+		panic("reflect/incomplete error: Type size should be known, but it is not")
+	}
+}
+
+func (t *itype) align() uint8 {
+	if t.iflag&iflagSize == 0 {
+		return 0 // not known yet
+	} else if t.complete != nil {
+		return uint8(t.complete.Align())
+	} else if t.incomplete != nil {
+		return t.incomplete.align
+	} else {
+		panic("reflect/incomplete error: Type align should be known, but it is not")
+	}
+}
+
+func (t *itype) fieldAlign() uint8 {
+	if t.iflag&iflagSize == 0 {
+		return 0 // not known yet
+	} else if t.complete != nil {
+		return uint8(t.complete.FieldAlign())
+	} else if t.incomplete != nil {
+		return t.incomplete.fieldAlign
+	} else {
+		panic("reflect/incomplete error: Type fieldAlign should be known, but it is not")
 	}
 }
 
@@ -265,7 +289,7 @@ func ArrayOf(count int, elem Type) Type {
 	}
 }
 
-const sizeOfChan = unsafe.Sizeof(make(chan int))
+var rtypeChan *rtype = unwrap(reflect.TypeOf(make(chan unsafe.Pointer)))
 
 // ChanOf is analogous to reflect.ChanOf.
 func ChanOf(dir reflect.ChanDir, elem Type) Type {
@@ -273,14 +297,12 @@ func ChanOf(dir reflect.ChanDir, elem Type) Type {
 	if ielem.complete != nil {
 		return Of(reflect.ChanOf(dir, ielem.complete))
 	}
+	incomplete := *rtypeChan
 	return &itype{
-		named:   nil,
-		methods: nil,
-		iflag:   iflagSize,
-		incomplete: &rtype{
-			size: sizeOfChan,
-			kind: kChan,
-		},
+		named:      nil,
+		methods:    nil,
+		iflag:      iflagSize,
+		incomplete: &incomplete,
 		info: iChanType{
 			elem: elem,
 			dir:  dir,
@@ -288,7 +310,7 @@ func ChanOf(dir reflect.ChanDir, elem Type) Type {
 	}
 }
 
-const sizeOfMap = unsafe.Sizeof(make(map[int]int))
+var rtypeMap *rtype = unwrap(reflect.TypeOf(make(map[unsafe.Pointer]unsafe.Pointer)))
 
 // MapOf creates an incomplete map type with the given key and element types.
 func MapOf(key, elem Type) Type {
@@ -297,14 +319,12 @@ func MapOf(key, elem Type) Type {
 	if ikey.complete != nil && ielem.complete != nil {
 		return Of(reflect.MapOf(ikey.complete, ielem.complete))
 	}
+	incomplete := *rtypeMap
 	return &itype{
-		named:   nil,
-		methods: nil,
-		iflag:   iflagSize,
-		incomplete: &rtype{
-			size: sizeOfMap,
-			kind: kMap,
-		},
+		named:      nil,
+		methods:    nil,
+		iflag:      iflagSize,
+		incomplete: &incomplete,
 		info: iMapType{
 			key:  key,
 			elem: elem,
@@ -312,7 +332,7 @@ func MapOf(key, elem Type) Type {
 	}
 }
 
-const sizeOfPtr = unsafe.Sizeof(new(int))
+var rtypePtr *rtype = unwrap(reflect.TypeOf(new(unsafe.Pointer)))
 
 // PtrTo is analogous to reflect.PtrTo.
 func PtrTo(elem Type) Type {
@@ -320,21 +340,19 @@ func PtrTo(elem Type) Type {
 	if ielem.complete != nil {
 		return Of(reflect.PtrTo(ielem.complete))
 	}
+	incomplete := *rtypePtr
 	return &itype{
-		named:   nil,
-		methods: nil,
-		iflag:   iflagSize,
-		incomplete: &rtype{
-			size: sizeOfPtr,
-			kind: kPtr,
-		},
+		named:      nil,
+		methods:    nil,
+		iflag:      iflagSize,
+		incomplete: &incomplete,
 		info: iPtrType{
 			elem: elem,
 		},
 	}
 }
 
-const sizeOfSlice = unsafe.Sizeof(make([]int, 0))
+var rtypeSlice *rtype = unwrap(reflect.TypeOf(make([]unsafe.Pointer, 0)))
 
 // SliceOf is analogous to reflect.SliceOf.
 func SliceOf(elem Type) Type {
@@ -342,14 +360,12 @@ func SliceOf(elem Type) Type {
 	if ielem.complete != nil {
 		return Of(reflect.SliceOf(ielem.complete))
 	}
+	incomplete := *rtypeSlice
 	return &itype{
-		named:   nil,
-		methods: nil,
-		incomplete: &rtype{
-			size: sizeOfSlice,
-			kind: kSlice,
-		},
-		iflag: iflagSize,
+		named:      nil,
+		methods:    nil,
+		incomplete: &incomplete,
+		iflag:      iflagSize,
 		info: iSliceType{
 			elem: elem,
 		},
