@@ -10,10 +10,11 @@ import (
 	"unsafe"
 )
 
-func compare(t *testing.T, actual interface{}, expected interface{}) {
-	if !reflect.DeepEqual(actual, expected) {
-		t.Errorf("\n\texpected\t%+v\n\tactual\t%+v", expected, actual)
+func compare(t *testing.T, actual Type, expected Type) {
+	if reflect.DeepEqual(actual, expected) {
+		return
 	}
+	t.Errorf("\n\texpected\t%+v\n\tactual\t%+v", expected, actual)
 }
 
 var values = []interface{}{
@@ -30,9 +31,10 @@ func TestArrayOf(t *testing.T) {
 		rt := reflect.TypeOf(x)
 		actual := ArrayOf(1, Of(rt))
 		expected := &itype{
-			str:      "[1]" + rt.String(),
-			iflag:    iflagSize,
-			complete: reflect.ArrayOf(1, rt),
+			str:        "[1]" + rt.String(),
+			comparable: makeTribool(rt.Comparable()),
+			iflag:      iflagSize,
+			complete:   reflect.ArrayOf(1, rt),
 		}
 		compare(t, actual, expected)
 	}
@@ -43,12 +45,46 @@ func TestChanOf(t *testing.T) {
 		rt := reflect.TypeOf(x)
 		actual := ChanOf(reflect.BothDir, Of(rt))
 		expected := &itype{
-			str:      "chan " + rt.String(),
-			iflag:    iflagSize,
-			complete: reflect.ChanOf(reflect.BothDir, rt),
+			str:        "chan " + rt.String(),
+			comparable: ttrue,
+			iflag:      iflagSize,
+			complete:   reflect.ChanOf(reflect.BothDir, rt),
 		}
 		compare(t, actual, expected)
 	}
+}
+
+func TestFuncOf(t *testing.T) {
+	for _, x := range values {
+		rt := reflect.TypeOf(x)
+		rtslice := []reflect.Type{rt}
+		it := Of(rt)
+		itslice := []Type{it}
+		actual := FuncOf(itslice, itslice, false)
+		expected := &itype{
+			str:        "func(" + rt.String() + ") " + rt.String(),
+			comparable: tfalse,
+			iflag:      iflagSize,
+			complete:   reflect.FuncOf(rtslice, rtslice, false),
+		}
+		compare(t, actual, expected)
+	}
+}
+
+func TestInterfaceOf(t *testing.T) {
+	actual := InterfaceOf(nil)
+	expected := &itype{
+		comparable: ttrue,
+		iflag:      iflagSize,
+		incomplete: &rtype{
+			size:       rtypeInterface.size,
+			align:      rtypeInterface.align,
+			fieldAlign: rtypeInterface.fieldAlign,
+			kind:       kInterface,
+		},
+		info: iInterfaceType{},
+	}
+	compare(t, actual, expected)
 }
 
 func TestMapOf(t *testing.T) {
@@ -60,35 +96,10 @@ func TestMapOf(t *testing.T) {
 		it := Of(rt)
 		actual := MapOf(it, it)
 		expected := &itype{
-			str:      "map[" + rt.String() + "]" + rt.String(),
-			iflag:    iflagSize,
-			complete: reflect.MapOf(rt, rt),
-		}
-		compare(t, actual, expected)
-	}
-}
-
-func TestPtrTo(t *testing.T) {
-	for _, x := range values {
-		rt := reflect.TypeOf(x)
-		actual := PtrTo(Of(rt))
-		expected := &itype{
-			str:      "*" + rt.String(),
-			iflag:    iflagSize,
-			complete: reflect.PtrTo(rt),
-		}
-		compare(t, actual, expected)
-	}
-}
-
-func TestSliceOf(t *testing.T) {
-	for _, x := range values {
-		rt := reflect.TypeOf(x)
-		actual := SliceOf(Of(rt))
-		expected := &itype{
-			str:      "[]" + rt.String(),
-			iflag:    iflagSize,
-			complete: reflect.SliceOf(rt),
+			str:        "map[" + rt.String() + "]" + rt.String(),
+			comparable: tfalse,
+			iflag:      iflagSize,
+			complete:   reflect.MapOf(rt, rt),
 		}
 		compare(t, actual, expected)
 	}
@@ -98,9 +109,10 @@ func TestNamedOf(t *testing.T) {
 	name, pkgPath := "foo", "my/pkg/path"
 	actual := NamedOf(name, pkgPath)
 	expected := &itype{
-		named: &namedType{name: name, pkgPath: pkgPath},
-		str:   pkgPath + "." + name,
-		iflag: 0,
+		named:      &namedType{name: name, pkgPath: pkgPath},
+		str:        pkgPath + "." + name,
+		comparable: tunknown,
+		iflag:      0,
 	}
 	compare(t, actual, expected)
 }
@@ -117,10 +129,11 @@ func TestOf(t *testing.T) {
 			}
 		}
 		expected := &itype{
-			str:      rt.String(),
-			named:    named,
-			iflag:    iflagSize,
-			complete: rt,
+			str:        rt.String(),
+			named:      named,
+			comparable: makeTribool(rt.Comparable()),
+			iflag:      iflagSize,
+			complete:   rt,
 		}
 		compare(t, actual, expected)
 	}
@@ -138,22 +151,52 @@ func TestOfWithMethods(t *testing.T) {
 	actual := Of(rt)
 	expected := &itype{
 		named: &namedType{name: rt.Name(), pkgPath: rt.PkgPath()},
-		methods: &[]Method{
+		method: &[]Method{
 			Method{
 				Name:    "String",
 				PkgPath: "",
 				Type: &itype{
-					str:      reflect.TypeOf(dummy.String).String(),
-					iflag:    iflagSize,
-					complete: reflect.TypeOf(dummy.String),
+					str:        reflect.TypeOf(dummy.String).String(),
+					comparable: tfalse,
+					iflag:      iflagSize,
+					complete:   reflect.TypeOf(dummy.String),
 				},
 			},
 		},
-		str:      rt.String(),
-		iflag:    iflagSize,
-		complete: rt,
+		str:        rt.String(),
+		comparable: makeTribool(rt.Comparable()),
+		iflag:      iflagSize,
+		complete:   rt,
 	}
 	compare(t, actual, expected)
+}
+
+func TestPtrTo(t *testing.T) {
+	for _, x := range values {
+		rt := reflect.TypeOf(x)
+		actual := PtrTo(Of(rt))
+		expected := &itype{
+			str:        "*" + rt.String(),
+			comparable: ttrue,
+			iflag:      iflagSize,
+			complete:   reflect.PtrTo(rt),
+		}
+		compare(t, actual, expected)
+	}
+}
+
+func TestSliceOf(t *testing.T) {
+	for _, x := range values {
+		rt := reflect.TypeOf(x)
+		actual := SliceOf(Of(rt))
+		expected := &itype{
+			str:        "[]" + rt.String(),
+			comparable: tfalse,
+			iflag:      iflagSize,
+			complete:   reflect.SliceOf(rt),
+		}
+		compare(t, actual, expected)
+	}
 }
 
 func TestStructOf(t *testing.T) {
@@ -168,9 +211,10 @@ func TestStructOf(t *testing.T) {
 		{Name: "Second", Type: fieldrt},
 	})
 	expected := &itype{
-		str:      rt.String(),
-		iflag:    iflagSize,
-		complete: rt,
+		str:        rt.String(),
+		comparable: makeTribool(fieldrt.Comparable()),
+		iflag:      iflagSize,
+		complete:   rt,
 	}
 	compare(t, actual, expected)
 }

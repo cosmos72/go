@@ -93,11 +93,49 @@ const (
 	iflagSize iflag = 1 << 1
 )
 
+// tribool is a three-valued boolean: true, false, unknown
+type tribool uint8
+
+const (
+	tunknown tribool = 0
+	tfalse   tribool = 1
+	ttrue    tribool = 2
+)
+
+func makeTribool(flag bool) tribool {
+	if flag {
+		return ttrue
+	} else {
+		return tfalse
+	}
+}
+
+func andTribool(a tribool, b tribool) tribool {
+	if a == tunknown || b == tunknown {
+		return tunknown
+	} else if a == tfalse || b == tfalse {
+		return tfalse
+	} else {
+		return ttrue
+	}
+}
+
+func (flag tribool) String() string {
+	switch flag {
+	case tfalse:
+		return "tfalse"
+	case ttrue:
+		return "ttrue"
+	}
+	return "tunknown"
+}
+
 // itype is the implementation of Type
 type itype struct {
 	named      *namedType
-	methods    *[]Method
+	method     *[]Method
 	str        string
+	comparable tribool
 	iflag      iflag
 	incomplete *rtype
 	complete   reflect.Type // nil if not known yet
@@ -248,15 +286,16 @@ func of(rtyp reflect.Type) Type {
 		}
 	}
 	ityp := &itype{
-		named:    named,
-		str:      rtyp.String(),
-		iflag:    iflagSize,
-		complete: rtyp,
-		info:     nil,
+		named:      named,
+		str:        rtyp.String(),
+		comparable: makeTribool(rtyp.Comparable()),
+		iflag:      iflagSize,
+		complete:   rtyp,
+		info:       nil,
 	}
 	ofMap[rtyp] = ityp
 	// convert methods after updating cache - avoids infinite recursion
-	ityp.methods = methodsFromReflect(rtyp)
+	ityp.method = methodsFromReflect(rtyp)
 	return ityp
 }
 
@@ -281,10 +320,8 @@ func NamedOf(name, pkgPath string) Type {
 			name:    name,
 			pkgPath: pkgPath,
 		},
-		methods: nil,
-		str:     str,
-		iflag:   0,
-		info:    nil,
+		method: nil,
+		str:    str,
 	}
 }
 
@@ -299,10 +336,11 @@ func ArrayOf(count int, elem Type) Type {
 		return Of(reflect.ArrayOf(count, ielem.complete))
 	}
 	return &itype{
-		named:   nil,
-		methods: nil,
-		str:     "[" + strconv.Itoa(count) + "]" + ielem.string(),
-		iflag:   ielem.iflag & iflagSize,
+		named:      nil,
+		method:     nil,
+		str:        "[" + strconv.Itoa(count) + "]" + ielem.string(),
+		comparable: ielem.comparable,
+		iflag:      ielem.iflag & iflagSize,
 		incomplete: &rtype{
 			size: uintptr(count) * ielem.size(),
 			kind: kArray,
@@ -325,8 +363,9 @@ func ChanOf(dir reflect.ChanDir, elem Type) Type {
 	incomplete := *rtypeChan
 	return &itype{
 		named:      nil,
-		methods:    nil,
+		method:     nil,
 		str:        "chan " + ielem.string(),
+		comparable: ttrue,
 		iflag:      iflagSize,
 		incomplete: &incomplete,
 		info: iChanType{
@@ -345,11 +384,15 @@ func MapOf(key, elem Type) Type {
 	if ikey.complete != nil && ielem.complete != nil {
 		return Of(reflect.MapOf(ikey.complete, ielem.complete))
 	}
+	if ikey.comparable == tfalse {
+		panic("incomplete.MapOf: invalid key type, cannot be compared with itself")
+	}
 	incomplete := *rtypeMap
 	return &itype{
 		named:      nil,
-		methods:    nil,
+		method:     nil,
 		str:        "map[" + ikey.string() + "]" + ielem.string(),
+		comparable: tfalse,
 		iflag:      iflagSize,
 		incomplete: &incomplete,
 		info: iMapType{
@@ -370,8 +413,9 @@ func PtrTo(elem Type) Type {
 	incomplete := *rtypePtr
 	return &itype{
 		named:      nil,
-		methods:    nil,
+		method:     nil,
 		str:        "*" + ielem.string(),
+		comparable: ttrue,
 		iflag:      iflagSize,
 		incomplete: &incomplete,
 		info: iPtrType{
@@ -391,9 +435,10 @@ func SliceOf(elem Type) Type {
 	incomplete := *rtypeSlice
 	return &itype{
 		named:      nil,
-		methods:    nil,
+		method:     nil,
 		str:        "[]" + ielem.string(),
 		incomplete: &incomplete,
+		comparable: tfalse,
 		iflag:      iflagSize,
 		info: iSliceType{
 			elem: elem,

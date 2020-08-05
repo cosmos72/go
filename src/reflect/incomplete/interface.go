@@ -5,15 +5,14 @@
 package incomplete
 
 import (
-	"unsafe"
+	"reflect"
 )
 
 type iInterfaceType struct {
 	embedded []Type
-	methods  []Method
 }
 
-const sizeOfInterface = unsafe.Sizeof((interface{})(nil))
+var rtypeInterface *rtype = unwrap(reflect.TypeOf((*interface{})(nil)).Elem())
 
 // InterfaceOf returns an incomplete interface type with the given list of
 // named interface types. InterfaceOf panics if one of the given embedded types
@@ -23,12 +22,15 @@ const sizeOfInterface = unsafe.Sizeof((interface{})(nil))
 // Explicit methods can be added with AddMethod.
 func InterfaceOf(embedded []Type) Type {
 	return &itype{
-		named:   nil,
-		methods: nil,
-		iflag:   iflagSize,
+		named:      nil,
+		method:     nil,
+		comparable: ttrue,
+		iflag:      iflagSize,
 		incomplete: &rtype{
-			size: sizeOfInterface,
-			kind: kInterface,
+			size:       rtypeInterface.size,
+			align:      rtypeInterface.align,
+			fieldAlign: rtypeInterface.fieldAlign,
+			kind:       kInterface,
 		},
 		info: iInterfaceType{
 			// safety: make a copy of embedded[]

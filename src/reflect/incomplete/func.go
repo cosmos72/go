@@ -6,7 +6,6 @@ package incomplete
 
 import (
 	"reflect"
-	"unsafe"
 )
 
 type iFuncType struct {
@@ -15,7 +14,7 @@ type iFuncType struct {
 	variadic bool
 }
 
-const sizeOfFunc = unsafe.Sizeof(func() {})
+var rtypeFunc *rtype = unwrap(reflect.TypeOf(func() {}))
 
 // FuncOf is analogous to reflect.FuncOf.
 func FuncOf(in, out []Type, variadic bool) Type {
@@ -29,12 +28,15 @@ func FuncOf(in, out []Type, variadic bool) Type {
 		return Of(reflectFuncOf(in, out, variadic))
 	}
 	return &itype{
-		named:   nil,
-		methods: nil,
-		iflag:   iflagSize,
+		named:      nil,
+		method:     nil,
+		comparable: tfalse,
+		iflag:      iflagSize,
 		incomplete: &rtype{
-			size: sizeOfFunc,
-			kind: kFunc,
+			size:       rtypeFunc.size,
+			align:      rtypeFunc.align,
+			fieldAlign: rtypeFunc.fieldAlign,
+			kind:       kFunc,
 		},
 		info: iFuncType{
 			// safety: make a copy of in[] and out[]
