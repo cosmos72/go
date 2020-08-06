@@ -11,7 +11,6 @@ package incomplete
 
 import (
 	"reflect"
-	"strconv"
 	"sync"
 	"unsafe"
 )
@@ -47,6 +46,9 @@ type Type interface {
 
 	// unexported
 	string() string
+
+	// unexported
+	printable
 }
 
 // analogous to reflect.Kind.
@@ -134,20 +136,20 @@ func (flag tribool) String() string {
 type itype struct {
 	named      *namedType
 	method     *[]Method
-	str        string
 	comparable tribool
 	iflag      iflag
 	incomplete *rtype
 	complete   reflect.Type // nil if not known yet
 	// nil or one of: *itype, iArrayType, iChanType, iFuncType,
 	// iInterfaceType, iMapType, iPtrType, iSliceType, iStructType
-	info interface{}
+	info printable
 }
 
 // namedType contains the name, pkgPath and methods for named types
 type namedType struct {
 	name    string // name of type
 	pkgPath string // import path
+	str     string
 }
 
 type iArrayType struct {
@@ -191,10 +193,6 @@ func (t *itype) AddMethod(mtd Method) {
 	panic("unimplemented: incomplete.Type.AddMethod()")
 }
 
-func (t *itype) string() string {
-	return t.str
-}
-
 func (t *itype) kind() kind {
 	if t.complete != nil {
 		return kind(t.complete.Kind())
@@ -203,6 +201,10 @@ func (t *itype) kind() kind {
 	} else {
 		return kInvalid
 	}
+}
+
+func (t *itype) string() string {
+	return string(t.printTo(([]byte)(nil), ""))
 }
 
 func (t *itype) size() uintptr {
@@ -283,11 +285,11 @@ func of(rtyp reflect.Type) Type {
 		named = &namedType{
 			name:    rtyp.Name(),
 			pkgPath: rtyp.PkgPath(),
+			str:     rtyp.String(),
 		}
 	}
 	ityp := &itype{
 		named:      named,
-		str:        rtyp.String(),
 		comparable: makeTribool(rtyp.Comparable()),
 		iflag:      iflagSize,
 		complete:   rtyp,
@@ -314,15 +316,27 @@ func NamedOf(name, pkgPath string) Type {
 		// slightly reduce memory usage
 		pkgPath = str[:len(pkgPath)]
 		name = str[1+len(pkgPath):]
+		str = filename(str)
 	}
 	return &itype{
 		named: &namedType{
 			name:    name,
 			pkgPath: pkgPath,
+			str:     str,
 		},
 		method: nil,
-		str:    str,
 	}
+}
+
+// filename returns the trailing portion of path after the last '/'
+func filename(path string) string {
+	n := len(path)
+	for i := n - 1; i >= 0; i-- {
+		if path[i] == '/' {
+			return path[i+1:]
+		}
+	}
+	return path
 }
 
 // ArrayOf creates an incomplete array type with the given count and
@@ -338,7 +352,6 @@ func ArrayOf(count int, elem Type) Type {
 	return &itype{
 		named:      nil,
 		method:     nil,
-		str:        "[" + strconv.Itoa(count) + "]" + ielem.string(),
 		comparable: ielem.comparable,
 		iflag:      ielem.iflag & iflagSize,
 		incomplete: &rtype{
@@ -364,7 +377,6 @@ func ChanOf(dir reflect.ChanDir, elem Type) Type {
 	return &itype{
 		named:      nil,
 		method:     nil,
-		str:        "chan " + ielem.string(),
 		comparable: ttrue,
 		iflag:      iflagSize,
 		incomplete: &incomplete,
@@ -391,7 +403,6 @@ func MapOf(key, elem Type) Type {
 	return &itype{
 		named:      nil,
 		method:     nil,
-		str:        "map[" + ikey.string() + "]" + ielem.string(),
 		comparable: tfalse,
 		iflag:      iflagSize,
 		incomplete: &incomplete,
@@ -414,7 +425,6 @@ func PtrTo(elem Type) Type {
 	return &itype{
 		named:      nil,
 		method:     nil,
-		str:        "*" + ielem.string(),
 		comparable: ttrue,
 		iflag:      iflagSize,
 		incomplete: &incomplete,
@@ -436,7 +446,6 @@ func SliceOf(elem Type) Type {
 	return &itype{
 		named:      nil,
 		method:     nil,
-		str:        "[]" + ielem.string(),
 		incomplete: &incomplete,
 		comparable: tfalse,
 		iflag:      iflagSize,

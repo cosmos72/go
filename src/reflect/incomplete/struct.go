@@ -14,6 +14,21 @@ type iStructType struct {
 	fields []StructField
 }
 
+func (info iStructType) printTo(dst []byte, sep string) []byte {
+	dst = append(append(dst, sep...), "struct "...)
+	sep = "{ "
+	for i := range info.fields {
+		dst = info.fields[i].printTo(dst, sep)
+		sep = "; "
+	}
+	if len(info.fields) == 0 {
+		dst = append(dst, "{}"...)
+	} else {
+		dst = append(dst, " }"...)
+	}
+	return dst
+}
+
 // StructField is analogous to reflect.StructField, minus the Index and Offset
 // fields.
 type StructField struct {
@@ -35,10 +50,13 @@ func (field *StructField) toReflect() reflect.StructField {
 	}
 }
 
+func (field *StructField) printTo(bytes []byte, separator string) []byte {
+	return append(append(append(append(bytes,
+		separator...), field.Name...), ' '), field.Type.string()...)
+}
+
 // StructOf is analogous to reflect.StructOf.
 func StructOf(fields []StructField) Type {
-	var bytes = []byte("struct ")
-	sep := "{ "
 	comparable := ttrue
 	complete := true
 	for i, field := range fields {
@@ -57,22 +75,13 @@ func StructOf(fields []StructField) Type {
 		}
 		comparable = andTribool(comparable, field.Type.(*itype).comparable)
 
-		bytes = append(append(append(append(bytes,
-			sep...), field.Name...), ' '), field.Type.string()...)
-		sep = "; "
 	}
 	if complete {
 		return Of(reflectStructOf(fields))
 	}
-	if len(fields) == 0 {
-		bytes = append(bytes, "{}"...)
-	} else {
-		bytes = append(bytes, " }"...)
-	}
 	return &itype{
 		named:      nil,
 		method:     nil,
-		str:        string(bytes),
 		comparable: comparable,
 		iflag:      iflag(0),
 		incomplete: &rtype{
