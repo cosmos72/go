@@ -76,15 +76,17 @@ func (info iMapType) printTo(dst []byte, sep string) []byte {
 }
 
 func (info iInterfaceType) printTo(dst []byte, sep string) []byte {
-	// TODO
 	dst = append(append(dst, sep...), "interface{"...)
-	/*
-		sep = ""
-		for _, method := range info.methods {
 
-		}
-	*/
-	return dst
+	if len(info.allMethod) == 0 {
+		return append(dst, '}')
+	}
+	sep = " "
+	for i := range info.allMethod {
+		info.allMethod[i].printTo(dst, sep)
+		sep = "; "
+	}
+	return append(dst, " }"...)
 }
 
 func (info iPtrType) printTo(dst []byte, sep string) []byte {

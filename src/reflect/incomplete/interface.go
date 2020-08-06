@@ -11,7 +11,7 @@ import (
 type iInterfaceType struct {
 	embedded       []Type
 	declaredMethod []Method
-	allMethod      []Method
+	allMethod      []Method // ordered alphabetically
 }
 
 var rtypeInterface *rtype = unwrap(reflect.TypeOf((*interface{})(nil)).Elem())

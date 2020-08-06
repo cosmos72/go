@@ -11,10 +11,12 @@ import (
 )
 
 func compare(t *testing.T, actual Type, expected Type) {
-	if reflect.DeepEqual(actual, expected) {
-		return
+	if !reflect.DeepEqual(actual, expected) {
+		t.Errorf("\n\texpected\t%+v\n\tactual\t%+v", expected, actual)
 	}
-	t.Errorf("\n\texpected\t%+v\n\tactual\t%+v", expected, actual)
+	if actual.string() != expected.string() {
+		t.Errorf("\n\texpected\t%s\n\tactual\t%s", expected.string(), actual.string())
+	}
 }
 
 var values = []interface{}{

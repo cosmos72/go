@@ -36,3 +36,19 @@ func (mtd *Method) fromReflect(rmethod reflect.Method) {
 	mtd.Type = of(rmethod.Type)
 	// mtd.Index = rmethod.Index
 }
+
+// print interface method
+func (mtd *Method) printTo(dst []byte, sep string) []byte {
+	dst = append(dst, sep...)
+	if path := mtd.PkgPath; path != "" {
+		dst = append(append(dst, filename(path)...), '.')
+	}
+	dst = append(append(dst, mtd.Name...), ' ')
+
+	// omit "func" prefix in method type
+	buf := mtd.Type.printTo(([]byte)(nil), "")
+	if len(buf) >= 5 && string(buf[0:5]) == "func(" {
+		buf = buf[5:]
+	}
+	return append(dst, buf...)
+}
