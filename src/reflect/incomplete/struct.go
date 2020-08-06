@@ -7,7 +7,6 @@ package incomplete
 import (
 	"reflect"
 	"strconv"
-	_ "unsafe" // needed by go:linkname
 )
 
 type iStructType struct {
@@ -92,9 +91,6 @@ func StructOf(fields []StructField) Type {
 		},
 	}
 }
-
-//go:linkname isValidFieldName reflect.isValidFieldName
-func isValidFieldName(fieldName string) bool
 
 func reflectStructOf(fields []StructField) reflect.Type {
 	rfields := make([]reflect.StructField, len(fields))

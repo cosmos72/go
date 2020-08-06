@@ -5,7 +5,6 @@
 package incomplete
 
 import (
-	"reflect"
 	"unsafe"
 )
 
@@ -210,23 +209,112 @@ type name struct {
 	bytes *byte
 }
 
-//go:linkname newName reflect.newName
-func newName(n, tag string, exported bool) name
-
-// convert *incomplete.rtype to reflect.Type and canonicalize it
-//go:linkname canonicalize reflect.toType
-func canonicalize(t *rtype) reflect.Type
-
-// convert reflect.Type to *incomplete.rtype
-func unwrap(t reflect.Type) *rtype {
-	return *(**rtype)(unsafe.Pointer(&t))
+// prepareRtype replaces t.incomplete with an *rtype followed in memory
+// by one of: arrayType, chanType, funcType, interfaceType, mapType, ptrType
+// sliceType, sliceType, structType as expected by reflect.
+//
+// it also sets t.incomplete.hash
+func (u *itype) prepareRtype(t *itype) {
+	if t.complete != nil || t.iflag&iflagRtype != 0 {
+		return
+	}
+	// u.info may be another *itype with the same underlying type as t,
+	// or one of iArrayType, iChanType ... iStructType
+	u.info.prepareRtype(t)
+	t.iflag |= iflagRtype
 }
 
-// resolveReflectName adds a name to the reflection lookup map in the runtime.
-// It returns a new nameOff that can be used to refer to the pointer.
-//go:linkname resolveReflectName reflect.resolveReflectName
-func resolveReflectName(n name) nameOff
+func (info iArrayType) prepareRtype(t *itype) {
+	panic("unimplemented")
+}
 
-// fnv1 incorporates the list of bytes into the hash x using the FNV-1 hash function.
-//go:linkname fnv1 reflect.fnv1
-func fnv1(x uint32, list ...byte) uint32
+func (info iChanType) prepareRtype(t *itype) {
+	ielem := info.elem.(*itype)
+	ielem.prepareRtype(ielem)
+
+	// Make a channel type.
+	var ichan interface{} = (chan unsafe.Pointer)(nil)
+	prototype := *(**chanType)(unsafe.Pointer(&ichan))
+	ch := *prototype
+	ch.tflag = tflagRegularMemory
+	ch.dir = uintptr(info.dir)
+	s := t.string()
+	ch.str = resolveReflectName(newName(s, "", false))
+	ch.hash = fnv1(ielem.incomplete.hash, 'c', byte(info.dir))
+
+	// TODO canonicalize ielem.incomplete and t.incomplete
+	ch.elem = ielem.incomplete
+	t.incomplete = &ch.rtype
+}
+
+func (info iInterfaceType) prepareRtype(t *itype) {
+	panic("unimplemented")
+}
+
+func (info iMapType) prepareRtype(t *itype) {
+	ikey := info.elem.(*itype)
+	ikey.prepareRtype(ikey)
+	if ikey.incomplete.equal == nil {
+		panic("incomplete.Complete: invalid map key type, is not comparable: " +
+			ikey.string())
+	}
+	ielem := info.elem.(*itype)
+	ielem.prepareRtype(ielem)
+
+	// TODO canonicalize ikey.incomplete and ielem.incomplete
+	mt := makeMapType(ikey.incomplete, ielem.incomplete, t.string())
+
+	// TODO canonicalize t.incomplete
+	t.incomplete = &mt.rtype
+}
+
+func (info iFuncType) prepareRtype(t *itype) {
+	panic("unimplemented")
+}
+
+func (info iPtrType) prepareRtype(t *itype) {
+	ielem := info.elem.(*itype)
+	ielem.prepareRtype(ielem)
+
+	var iptr interface{} = (*unsafe.Pointer)(nil)
+	prototype := *(**ptrType)(unsafe.Pointer(&iptr))
+	pp := *prototype
+
+	s := t.string()
+	pp.str = resolveReflectName(newName(s, "", false))
+	pp.ptrToThis = 0
+
+	// For the type structures linked into the binary, the
+	// compiler provides a good hash of the string.
+	// Create a good hash for the new string by using
+	// the FNV-1 hash's mixing function to combine the
+	// old hash and the new "*".
+	pp.hash = fnv1(ielem.incomplete.hash, '*')
+
+	// TODO canonicalize ielem.incomplete and t.incomplete
+	pp.elem = ielem.incomplete
+	t.incomplete = &pp.rtype
+}
+
+func (info iSliceType) prepareRtype(t *itype) {
+	ielem := info.elem.(*itype)
+	ielem.prepareRtype(ielem)
+
+	// Make a slice type.
+	var islice interface{} = ([]unsafe.Pointer)(nil)
+	prototype := *(**sliceType)(unsafe.Pointer(&islice))
+	slice := *prototype
+	slice.tflag = 0
+	s := t.string()
+	slice.str = resolveReflectName(newName(s, "", false))
+	slice.hash = fnv1(ielem.incomplete.hash, '[')
+	slice.ptrToThis = 0
+
+	// TODO canonicalize ielem.incomplete and t.incomplete
+	slice.elem = ielem.incomplete
+	t.incomplete = &slice.rtype
+}
+
+func (info iStructType) prepareRtype(t *itype) {
+	panic("unimplemented")
+}

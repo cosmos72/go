@@ -91,8 +91,13 @@ const (
 	// iflagDefined means Define was called on the type
 	iflagDefined iflag = 1 << 0
 
+	// iflagRtype means the type has an 'incomplete' field followed in memory
+	// by one of: arrayType, chanType, funcType, interfaceType, mapType, ptrType
+	// sliceType, sliceType, structType as expected by reflect.
+	iflagRtype = 1 << 1
+
 	// iflagSize means the type has known size, align and fieldAlign
-	iflagSize iflag = 1 << 1
+	iflagSize iflag = 1 << 2
 )
 
 // tribool is a three-valued boolean: true, false, unknown
@@ -161,6 +166,7 @@ type qname struct {
 
 type iAnyType interface {
 	printable
+	prepareRtype(*itype)
 	completeType(*itype)
 }
 
@@ -426,7 +432,7 @@ func MapOf(key, elem Type) Type {
 		return Of(reflect.MapOf(ikey.complete, ielem.complete))
 	}
 	if ikey.comparable == tfalse {
-		panic("incomplete.MapOf: invalid key type, cannot be compared with itself")
+		panic("incomplete.MapOf: invalid key type, is not comparable")
 	}
 	incomplete := *rtypeMap
 	return &itype{
