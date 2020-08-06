@@ -153,7 +153,7 @@ func TestOfWithMethods(t *testing.T) {
 			name:    rt.Name(),
 			pkgPath: rt.PkgPath(),
 			str:     filename(rt.PkgPath()) + "." + rt.Name(),
-			method: []Method{
+			vmethod: []Method{
 				Method{
 					Name:    "String",
 					PkgPath: "",
@@ -161,6 +161,17 @@ func TestOfWithMethods(t *testing.T) {
 						comparable: tfalse,
 						iflag:      iflagSize,
 						complete:   reflect.TypeOf(dummy.String),
+					},
+				},
+			},
+			pmethod: []Method{
+				Method{
+					Name:    "String",
+					PkgPath: "",
+					Type: &itype{
+						comparable: tfalse,
+						iflag:      iflagSize,
+						complete:   reflect.TypeOf((*dummy).String),
 					},
 				},
 			},

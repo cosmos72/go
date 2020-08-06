@@ -149,7 +149,8 @@ type namedType struct {
 	name    string   // name of type
 	pkgPath string   // import path
 	str     string   // string representation
-	method  []Method // methods
+	vmethod []Method // methods with value receiver
+	pmethod []Method // methods with pointer receiver
 }
 
 type iArrayType struct {
@@ -298,7 +299,8 @@ func of(rtyp reflect.Type) Type {
 	ofMap[rtyp] = ityp
 	if named != nil {
 		// convert methods after updating cache - avoids infinite recursion
-		named.method = methodsFromReflect(rtyp)
+		named.vmethod = methodsFromReflect(rtyp)
+		named.pmethod = methodsFromReflect(reflect.PtrTo(rtyp))
 	}
 	return ityp
 }

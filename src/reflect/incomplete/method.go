@@ -19,7 +19,6 @@ type Method struct {
 }
 
 func methodsFromReflect(rtyp reflect.Type) []Method {
-	// TODO also collect methods with pointer receiver
 	n := rtyp.NumMethod()
 	if n == 0 {
 		return nil
