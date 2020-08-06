@@ -144,11 +144,16 @@ type itype struct {
 	info printable
 }
 
+// qname is a qualified name, i.e. pkgPath and name
+type qname struct {
+	name    string
+	pkgPath string
+	str     string // string representation
+}
+
 // namedType contains the name, pkgPath and methods for named types
 type namedType struct {
-	name    string   // name of type
-	pkgPath string   // import path
-	str     string   // string representation
+	qname            // name of type and import path
 	vmethod []Method // methods with value receiver
 	pmethod []Method // methods with pointer receiver
 }
@@ -179,10 +184,13 @@ type iSliceType struct {
 // itype methods
 func (t *itype) Define(u Type) {
 	if t.iflag&iflagDefined != 0 {
-		panic("incomplete.Type.Define() already invoked on this type")
+		panic("incomplete.Type.Define: already invoked on this type")
 	}
-	if t.named == nil || t.info != nil {
-		panic("incomplete.Type.Define() on Type not created with NamedOf")
+	if t.named == nil {
+		panic("incomplete.Type.Define: type not created with NamedOf")
+	}
+	if t.complete != nil {
+		panic("incomplete.Type.Define: type is already complete")
 	}
 	t.info = u.(*itype)
 	descendType(t)
@@ -191,7 +199,13 @@ func (t *itype) Define(u Type) {
 }
 
 func (t *itype) AddMethod(mtd Method) {
-	panic("unimplemented: incomplete.Type.AddMethod()")
+	if t.named == nil {
+		panic("incomplete.Type.AddMethod: type not created with NamedOf")
+	}
+	if t.complete != nil {
+		panic("incomplete.Type.AddMethod: type is already complete")
+	}
+	t.named.vmethod = append(t.named.vmethod, mtd)
 }
 
 func (t *itype) kind() kind {
@@ -284,9 +298,11 @@ func of(rtyp reflect.Type) Type {
 	var named *namedType
 	if rtyp.Name() != "" {
 		named = &namedType{
-			name:    rtyp.Name(),
-			pkgPath: rtyp.PkgPath(),
-			str:     rtyp.String(),
+			qname: qname{
+				name:    rtyp.Name(),
+				pkgPath: rtyp.PkgPath(),
+				str:     rtyp.String(),
+			},
 		}
 	}
 	ityp := &itype{
@@ -314,6 +330,14 @@ func NamedOf(name, pkgPath string) Type {
 	if !isValidFieldName(name) {
 		panic("incomplete.NamedOf: invalid name")
 	}
+	return &itype{
+		named: &namedType{
+			qname: makeQname(name, pkgPath),
+		},
+	}
+}
+
+func makeQname(name, pkgPath string) qname {
 	str := name
 	if pkgPath != "" {
 		str = pkgPath + "." + name
@@ -322,12 +346,10 @@ func NamedOf(name, pkgPath string) Type {
 		name = str[1+len(pkgPath):]
 		str = filename(str)
 	}
-	return &itype{
-		named: &namedType{
-			name:    name,
-			pkgPath: pkgPath,
-			str:     str,
-		},
+	return qname{
+		name:    name,
+		pkgPath: pkgPath,
+		str:     str,
 	}
 }
 

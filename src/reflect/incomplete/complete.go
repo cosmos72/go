@@ -21,6 +21,10 @@ func Complete(
 	method func(out []reflect.Type, index int, stub Method) interface{},
 ) []reflect.Type {
 
+	if method != nil {
+		panic("incomplete.Complete: argument 'method' must currently be nil")
+	}
+
 	for _, t := range in {
 		computeSize(t.(*itype), nil)
 	}

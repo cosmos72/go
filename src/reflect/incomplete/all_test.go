@@ -108,9 +108,7 @@ func TestNamedOf(t *testing.T) {
 	actual := NamedOf(name, pkgPath)
 	expected := &itype{
 		named: &namedType{
-			name:    name,
-			pkgPath: pkgPath,
-			str:     filename(pkgPath) + "." + name,
+			qname: makeQname(name, pkgPath),
 		},
 		comparable: tunknown,
 		iflag:      0,
@@ -125,9 +123,11 @@ func TestOf(t *testing.T) {
 		var named *namedType
 		if rt.Name() != "" {
 			named = &namedType{
-				name:    rt.Name(),
-				pkgPath: rt.PkgPath(),
-				str:     rt.String(),
+				qname: qname{
+					name:    rt.Name(),
+					pkgPath: rt.PkgPath(),
+					str:     rt.String(),
+				},
 			}
 		}
 		expected := &itype{
@@ -152,9 +152,11 @@ func TestOfWithMethods(t *testing.T) {
 	actual := Of(rt)
 	expected := &itype{
 		named: &namedType{
-			name:    rt.Name(),
-			pkgPath: rt.PkgPath(),
-			str:     filename(rt.PkgPath()) + "." + rt.Name(),
+			qname: qname{
+				name:    rt.Name(),
+				pkgPath: rt.PkgPath(),
+				str:     filename(rt.PkgPath()) + "." + rt.Name(),
+			},
 			vmethod: []Method{
 				Method{
 					Name:    "String",
