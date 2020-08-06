@@ -213,13 +213,20 @@ type name struct {
 //go:linkname newName reflect.newName
 func newName(n, tag string, exported bool) name
 
-//go:linkname wrap reflect.toType
-func wrap(t *rtype) reflect.Type
+// convert *incomplete.rtype to reflect.Type and canonicalize it
+//go:linkname canonicalize reflect.toType
+func canonicalize(t *rtype) reflect.Type
 
-/*
-//go:linkname unwrap reflect.unwrap
-func unwrap(t reflect.Type) *rtype
-*/
+// convert reflect.Type to *incomplete.rtype
 func unwrap(t reflect.Type) *rtype {
 	return *(**rtype)(unsafe.Pointer(&t))
 }
+
+// resolveReflectName adds a name to the reflection lookup map in the runtime.
+// It returns a new nameOff that can be used to refer to the pointer.
+//go:linkname resolveReflectName reflect.resolveReflectName
+func resolveReflectName(n name) nameOff
+
+// fnv1 incorporates the list of bytes into the hash x using the FNV-1 hash function.
+//go:linkname fnv1 reflect.fnv1
+func fnv1(x uint32, list ...byte) uint32

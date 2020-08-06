@@ -141,7 +141,15 @@ type itype struct {
 	complete   reflect.Type // nil if not known yet
 	// nil or one of: *itype, iArrayType, iChanType, iFuncType,
 	// iInterfaceType, iMapType, iPtrType, iSliceType, iStructType
-	info printable
+	info   iAnyType
+	finish func() // finishes 'complete' after completeType() created it
+}
+
+// namedType contains the name, pkgPath and methods for named types
+type namedType struct {
+	qname            // name of type and import path
+	vmethod []Method // methods with value receiver
+	pmethod []Method // methods with pointer receiver
 }
 
 // qname is a qualified name, i.e. pkgPath and name
@@ -151,11 +159,9 @@ type qname struct {
 	str     string // string representation
 }
 
-// namedType contains the name, pkgPath and methods for named types
-type namedType struct {
-	qname            // name of type and import path
-	vmethod []Method // methods with value receiver
-	pmethod []Method // methods with pointer receiver
+type iAnyType interface {
+	printable
+	completeType(*itype)
 }
 
 type iArrayType struct {

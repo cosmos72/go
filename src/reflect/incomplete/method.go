@@ -48,7 +48,7 @@ func (mtd *Method) printTo(dst []byte, sep string) []byte {
 	// omit "func" prefix in method type
 	buf := mtd.Type.printTo(([]byte)(nil), "")
 	if len(buf) >= 5 && string(buf[0:5]) == "func(" {
-		buf = buf[5:]
+		buf = buf[4:]
 	}
 	return append(dst, buf...)
 }
