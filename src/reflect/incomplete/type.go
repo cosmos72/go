@@ -135,7 +135,6 @@ func (flag tribool) String() string {
 // itype is the implementation of Type
 type itype struct {
 	named      *namedType
-	method     *[]Method
 	comparable tribool
 	iflag      iflag
 	incomplete *rtype
@@ -147,9 +146,10 @@ type itype struct {
 
 // namedType contains the name, pkgPath and methods for named types
 type namedType struct {
-	name    string // name of type
-	pkgPath string // import path
-	str     string
+	name    string   // name of type
+	pkgPath string   // import path
+	str     string   // string representation
+	method  []Method // methods
 }
 
 type iArrayType struct {
@@ -296,8 +296,10 @@ func of(rtyp reflect.Type) Type {
 		info:       nil,
 	}
 	ofMap[rtyp] = ityp
-	// convert methods after updating cache - avoids infinite recursion
-	ityp.method = methodsFromReflect(rtyp)
+	if named != nil {
+		// convert methods after updating cache - avoids infinite recursion
+		named.method = methodsFromReflect(rtyp)
+	}
 	return ityp
 }
 
@@ -324,7 +326,6 @@ func NamedOf(name, pkgPath string) Type {
 			pkgPath: pkgPath,
 			str:     str,
 		},
-		method: nil,
 	}
 }
 
@@ -351,7 +352,6 @@ func ArrayOf(count int, elem Type) Type {
 	}
 	return &itype{
 		named:      nil,
-		method:     nil,
 		comparable: ielem.comparable,
 		iflag:      ielem.iflag & iflagSize,
 		incomplete: &rtype{
@@ -376,7 +376,6 @@ func ChanOf(dir reflect.ChanDir, elem Type) Type {
 	incomplete := *rtypeChan
 	return &itype{
 		named:      nil,
-		method:     nil,
 		comparable: ttrue,
 		iflag:      iflagSize,
 		incomplete: &incomplete,
@@ -402,7 +401,6 @@ func MapOf(key, elem Type) Type {
 	incomplete := *rtypeMap
 	return &itype{
 		named:      nil,
-		method:     nil,
 		comparable: tfalse,
 		iflag:      iflagSize,
 		incomplete: &incomplete,
@@ -424,7 +422,6 @@ func PtrTo(elem Type) Type {
 	incomplete := *rtypePtr
 	return &itype{
 		named:      nil,
-		method:     nil,
 		comparable: ttrue,
 		iflag:      iflagSize,
 		incomplete: &incomplete,
@@ -445,7 +442,6 @@ func SliceOf(elem Type) Type {
 	incomplete := *rtypeSlice
 	return &itype{
 		named:      nil,
-		method:     nil,
 		incomplete: &incomplete,
 		comparable: tfalse,
 		iflag:      iflagSize,

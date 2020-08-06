@@ -81,7 +81,6 @@ func StructOf(fields []StructField) Type {
 	}
 	return &itype{
 		named:      nil,
-		method:     nil,
 		comparable: comparable,
 		iflag:      iflag(0),
 		incomplete: &rtype{

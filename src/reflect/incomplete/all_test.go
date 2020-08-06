@@ -69,7 +69,7 @@ func TestFuncOf(t *testing.T) {
 }
 
 func TestInterfaceOf(t *testing.T) {
-	actual := InterfaceOf(nil)
+	actual := InterfaceOf(nil, nil)
 	expected := &itype{
 		comparable: ttrue,
 		iflag:      iflagSize,
@@ -153,15 +153,15 @@ func TestOfWithMethods(t *testing.T) {
 			name:    rt.Name(),
 			pkgPath: rt.PkgPath(),
 			str:     filename(rt.PkgPath()) + "." + rt.Name(),
-		},
-		method: &[]Method{
-			Method{
-				Name:    "String",
-				PkgPath: "",
-				Type: &itype{
-					comparable: tfalse,
-					iflag:      iflagSize,
-					complete:   reflect.TypeOf(dummy.String),
+			method: []Method{
+				Method{
+					Name:    "String",
+					PkgPath: "",
+					Type: &itype{
+						comparable: tfalse,
+						iflag:      iflagSize,
+						complete:   reflect.TypeOf(dummy.String),
+					},
 				},
 			},
 		},

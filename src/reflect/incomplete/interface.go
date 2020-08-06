@@ -9,7 +9,9 @@ import (
 )
 
 type iInterfaceType struct {
-	embedded []Type
+	embedded       []Type
+	declaredMethod []Method
+	allMethod      []Method
 }
 
 var rtypeInterface *rtype = unwrap(reflect.TypeOf((*interface{})(nil)).Elem())
@@ -20,10 +22,9 @@ var rtypeInterface *rtype = unwrap(reflect.TypeOf((*interface{})(nil)).Elem())
 // with distinct, non-empty package paths are embedded.
 //
 // Explicit methods can be added with AddMethod.
-func InterfaceOf(embedded []Type) Type {
+func InterfaceOf(embedded []Type, method []Method) Type {
 	return &itype{
 		named:      nil,
-		method:     nil,
 		comparable: ttrue,
 		iflag:      iflagSize,
 		incomplete: &rtype{
@@ -35,6 +36,8 @@ func InterfaceOf(embedded []Type) Type {
 		info: iInterfaceType{
 			// safety: make a copy of embedded[]
 			embedded: append(([]Type)(nil), embedded...),
+			// safety: make a copy of method[]
+			declaredMethod: append(([]Method)(nil), method...),
 		},
 	}
 }

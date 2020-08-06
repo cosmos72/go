@@ -18,7 +18,8 @@ type Method struct {
 	// Index int
 }
 
-func methodsFromReflect(rtyp reflect.Type) *[]Method {
+func methodsFromReflect(rtyp reflect.Type) []Method {
+	// TODO also collect methods with pointer receiver
 	n := rtyp.NumMethod()
 	if n == 0 {
 		return nil
@@ -27,7 +28,7 @@ func methodsFromReflect(rtyp reflect.Type) *[]Method {
 	for i := 0; i < n; i++ {
 		mtd[i].fromReflect(rtyp.Method(i))
 	}
-	return &mtd
+	return mtd
 }
 
 func (mtd *Method) fromReflect(rmethod reflect.Method) {

@@ -29,7 +29,6 @@ func FuncOf(in, out []Type, variadic bool) Type {
 	}
 	return &itype{
 		named:      nil,
-		method:     nil,
 		comparable: tfalse,
 		iflag:      iflagSize,
 		incomplete: &rtype{
