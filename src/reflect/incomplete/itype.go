@@ -125,6 +125,7 @@ func (t *itype) fieldAlign() uint8 {
 
 func (t *itype) setSize(size uintptr, align uint8, fieldAlign uint8) {
 	if t.incomplete == nil {
+		// FIXME allocate the correct *Type
 		t.incomplete = &rtype{}
 	}
 	t.incomplete.size = size
