@@ -83,6 +83,11 @@ func (info iFuncType) printTo(dst []byte, sep string) []byte {
 	return dst
 }
 
+func (info iFuncType) computeSize(t *itype, work map[*itype]struct{}) bool {
+	// functions always have known, fixed size
+	return true
+}
+
 func (info iFuncType) prepareRtype(t *itype) {
 	panic("unimplemented")
 }

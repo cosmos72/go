@@ -14,8 +14,6 @@ type iMapType struct {
 	elem Type
 }
 
-var rtypeMap *rtype = unwrap(reflect.TypeOf(make(map[unsafe.Pointer]unsafe.Pointer)))
-
 // MapOf creates an incomplete map type with the given key and element types.
 func MapOf(key, elem Type) Type {
 	ikey := key.(*itype)
@@ -26,12 +24,19 @@ func MapOf(key, elem Type) Type {
 	if ikey.comparable == tfalse {
 		panic("incomplete.MapOf: invalid key type, is not comparable")
 	}
-	incomplete := *rtypeMap
+
+	// Make a map type.
+	var imap interface{} = (map[unsafe.Pointer]unsafe.Pointer)(nil)
+	mt := **(**mapType)(unsafe.Pointer(&imap))
+	mt.tflag = 0
+	mt.flags = 0
+	mt.ptrToThis = 0
+
 	return &itype{
 		named:      nil,
 		comparable: tfalse,
 		iflag:      iflagSize,
-		incomplete: &incomplete,
+		incomplete: &mt.rtype,
 		info: iMapType{
 			key:  key,
 			elem: elem,
@@ -39,12 +44,37 @@ func MapOf(key, elem Type) Type {
 	}
 }
 
+func (info iMapType) printTo(dst []byte, sep string) []byte {
+	dst = append(append(dst, sep...), "map["...)
+	dst = info.key.printTo(dst, "")
+	dst = append(dst, ']')
+	return info.elem.printTo(dst, "")
+}
+
+func (info iMapType) computeSize(t *itype, work map[*itype]struct{}) bool {
+	// maps always have known, fixed size
+	return true
+}
+
+func (info iMapType) prepareRtype(t *itype) {
+	ikey := info.elem.(*itype)
+	prepareRtype(ikey)
+	if ikey.incomplete.equal == nil {
+		panic("incomplete.Complete: invalid map key type, is not comparable: " +
+			ikey.string())
+	}
+	ielem := info.elem.(*itype)
+	prepareRtype(ielem)
+
+	// TODO canonicalize t.incomplete, ikey.incomplete and ielem.incomplete
+	prepareMapType(t.incomplete, ikey.incomplete, ielem.incomplete, t.string())
+}
+
 // Make a map type.
 // Note: flag values must match those used in the TMAP case
-// in ../cmd/compile/internal/gc/reflect.go:dtypesym.
-func makeMapType(ktyp *rtype, etyp *rtype, str string) *mapType {
-	var imap interface{} = (map[unsafe.Pointer]unsafe.Pointer)(nil)
-	mt := **(**mapType)(unsafe.Pointer(&imap))
+// in ../../cmd/compile/internal/gc/reflect.go:dtypesym.
+func prepareMapType(t *rtype, ktyp *rtype, etyp *rtype, str string) {
+	mt := (*mapType)(unsafe.Pointer(t))
 	mt.str = resolveReflectName(newName(str, "", false))
 	mt.tflag = 0
 	mt.hash = fnv1(etyp.hash, 'm', byte(ktyp.hash>>24), byte(ktyp.hash>>16), byte(ktyp.hash>>8), byte(ktyp.hash))
@@ -78,31 +108,6 @@ func makeMapType(ktyp *rtype, etyp *rtype, str string) *mapType {
 		mt.flags |= 16
 	}
 	mt.ptrToThis = 0
-	return &mt
-}
-
-func (info iMapType) printTo(dst []byte, sep string) []byte {
-	dst = append(append(dst, sep...), "map["...)
-	dst = info.key.printTo(dst, "")
-	dst = append(dst, ']')
-	return info.elem.printTo(dst, "")
-}
-
-func (info iMapType) prepareRtype(t *itype) {
-	ikey := info.elem.(*itype)
-	ikey.prepareRtype(ikey)
-	if ikey.incomplete.equal == nil {
-		panic("incomplete.Complete: invalid map key type, is not comparable: " +
-			ikey.string())
-	}
-	ielem := info.elem.(*itype)
-	ielem.prepareRtype(ielem)
-
-	// TODO canonicalize ikey.incomplete and ielem.incomplete
-	mt := makeMapType(ikey.incomplete, ielem.incomplete, t.string())
-
-	// TODO canonicalize t.incomplete
-	t.incomplete = &mt.rtype
 }
 
 func (info iMapType) completeType(t *itype) {

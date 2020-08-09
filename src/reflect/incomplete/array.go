@@ -45,11 +45,10 @@ func (info iArrayType) printTo(dst []byte, sep string) []byte {
 	return info.elem.printTo(dst, "")
 }
 
-func (info iArrayType) computeSize(t *itype, work map[*itype]struct{}) {
+func (info iArrayType) computeSize(t *itype, work map[*itype]struct{}) bool {
 	ielem := info.elem.(*itype)
-	computeSize(ielem, work)
-	if ielem.iflag&iflagSize == 0 {
-		return
+	if !ielem.computeSize(ielem, work) {
+		return false
 	}
 	esize := ielem.size()
 	if esize > 0 {
@@ -59,6 +58,7 @@ func (info iArrayType) computeSize(t *itype, work map[*itype]struct{}) {
 		}
 	}
 	t.setSize(uintptr(info.count)*esize, ielem.align(), ielem.fieldAlign())
+	return true
 }
 
 func (info iArrayType) prepareRtype(t *itype) {

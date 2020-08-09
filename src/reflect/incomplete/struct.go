@@ -100,6 +100,51 @@ func (info iStructType) printTo(dst []byte, sep string) []byte {
 	return dst
 }
 
+func (info iStructType) computeSize(t *itype, work map[*itype]struct{}) bool {
+	var size, lastzero uintptr
+	var align, fieldAlign uint8
+	ok := true
+	for _, field := range info.fields {
+		ityp := field.Type.(*itype)
+		computeSize(ityp, work)
+		if ityp.iflag&iflagSize == 0 {
+			ok = false
+		} else if ok {
+			fsize := ityp.size()
+			falign := ityp.align()
+
+			offset := doAlign(size, uintptr(falign))
+			if falign > align {
+				align = falign
+			}
+			size = offset + fsize
+			if fsize == 0 {
+				lastzero = size
+			}
+		}
+	}
+	fieldAlign = align
+	if ok && size > 0 && lastzero == size {
+		// This is a non-zero sized struct that ends in a
+		// zero-sized field. We add an extra byte of padding,
+		// to ensure that taking the address of the final
+		// zero-sized field can't manufacture a pointer to the
+		// next object in the heap. See issue 9401.
+		size++
+	}
+	if ok {
+		t.setSize(size, align, fieldAlign)
+	}
+	return ok
+}
+
+// align returns the result of rounding x up to a multiple of n.
+// n must be a power of two.
+// Must be kept in sync with reflect.align()
+func doAlign(x, n uintptr) uintptr {
+	return (x + n - 1) &^ (n - 1)
+}
+
 func (info iStructType) completeType(t *itype) {
 	panic("unimplemented")
 }

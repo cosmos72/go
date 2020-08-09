@@ -38,9 +38,14 @@ func (info iSliceType) printTo(dst []byte, sep string) []byte {
 	return info.elem.printTo(dst, "")
 }
 
+func (info iSliceType) computeSize(t *itype, work map[*itype]struct{}) bool {
+	// slices always have known, fixed size
+	return true
+}
+
 func (info iSliceType) prepareRtype(t *itype) {
 	ielem := info.elem.(*itype)
-	ielem.prepareRtype(ielem)
+	prepareRtype(ielem)
 
 	// Make a slice type.
 	var islice interface{} = ([]unsafe.Pointer)(nil)

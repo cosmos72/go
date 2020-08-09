@@ -56,6 +56,11 @@ func (info iInterfaceType) printTo(dst []byte, sep string) []byte {
 	return append(dst, " }"...)
 }
 
+func (info iInterfaceType) computeSize(t *itype, work map[*itype]struct{}) bool {
+	// interfaces always have known, fixed size
+	return true
+}
+
 func (info iInterfaceType) prepareRtype(t *itype) {
 	panic("unimplemented")
 }

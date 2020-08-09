@@ -38,9 +38,14 @@ func (info iPtrType) printTo(dst []byte, sep string) []byte {
 	return info.elem.printTo(dst, "")
 }
 
+func (info iPtrType) computeSize(t *itype, work map[*itype]struct{}) bool {
+	// pointers always have known, fixed size
+	return true
+}
+
 func (info iPtrType) prepareRtype(t *itype) {
 	ielem := info.elem.(*itype)
-	ielem.prepareRtype(ielem)
+	prepareRtype(ielem)
 
 	var iptr interface{} = (*unsafe.Pointer)(nil)
 	prototype := *(**ptrType)(unsafe.Pointer(&iptr))

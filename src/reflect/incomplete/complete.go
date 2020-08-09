@@ -35,12 +35,10 @@ func Complete(
 		}
 	}
 	for _, t := range in {
-		ityp := t.(*itype)
-		ityp.prepareRtype(ityp)
+		prepareRtype(t.(*itype))
 	}
 	for _, t := range in {
-		ityp := t.(*itype)
-		ityp.completeType(ityp)
+		completeType(t.(*itype))
 	}
 	return nil
 }
