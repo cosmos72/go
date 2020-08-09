@@ -45,20 +45,11 @@ func Complete(
 	return nil
 }
 
-func (u *itype) completeType(t *itype) {
-	if t.complete != nil {
-		return
+func allTypesAreComplete(types []Type) bool {
+	for _, t := range types {
+		if t.(*itype).complete == nil {
+			return false
+		}
 	}
-	// u.info may be another *itype with the same underlying type,
-	// or one of iArrayType, iChanType ... iStructType
-	u.info.completeType(t)
+	return true
 }
-
-func (info iArrayType) completeType(t *itype)     {}
-func (info iChanType) completeType(t *itype)      {}
-func (info iInterfaceType) completeType(t *itype) {}
-func (info iMapType) completeType(t *itype)       {}
-func (info iFuncType) completeType(t *itype)      {}
-func (info iPtrType) completeType(t *itype)       {}
-func (info iSliceType) completeType(t *itype)     {}
-func (info iStructType) completeType(t *itype)    {}

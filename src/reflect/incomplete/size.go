@@ -31,20 +31,7 @@ func computeSize(t *itype, work map[*itype]struct{}) {
 			}
 		}
 	case kArray:
-		a := t.info.(iArrayType)
-		ielem := a.elem.(*itype)
-		computeSize(ielem, work)
-		if ielem.iflag&iflagSize != 0 {
-			esize := ielem.size()
-			if esize > 0 {
-				max := ^uintptr(0) / esize
-				if uintptr(a.count) > max {
-					panic("incomplete.ArrayOf: array size would exceed virtual address space")
-				}
-			}
-			align, fieldAlign = ielem.align(), ielem.fieldAlign()
-			size, ok = uintptr(a.count)*esize, true
-		}
+		t.info.(iArrayType).computeSize(t, work)
 	case kStruct:
 		s := t.info.(iStructType)
 		lastzero := uintptr(0)

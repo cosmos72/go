@@ -39,12 +39,6 @@ func needKeyUpdate(t *rtype) bool
 //go:linkname newName reflect.newName
 func newName(n, tag string, exported bool) name
 
-//go:linkname makeArrayType reflect.makeArrayType
-func makeArrayType(count int, elem *rtype, str string) *arrayType
-
-//go:linkname makeMapType reflect.makeMapType
-func makeMapType(key *rtype, elem *rtype, str string) *mapType
-
 //go:linkname isReflexive reflect.isReflexive
 func isReflexive(t *rtype) bool
 

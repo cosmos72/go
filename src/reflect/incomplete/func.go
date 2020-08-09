@@ -46,15 +46,6 @@ func FuncOf(in, out []Type, variadic bool) Type {
 	}
 }
 
-func allTypesAreComplete(types []Type) bool {
-	for _, t := range types {
-		if t.(*itype).complete == nil {
-			return false
-		}
-	}
-	return true
-}
-
 func reflectFuncOf(in []Type, out []Type, variadic bool) reflect.Type {
 	rin := make([]reflect.Type, len(in))
 	for i, t := range in {
@@ -65,4 +56,37 @@ func reflectFuncOf(in []Type, out []Type, variadic bool) reflect.Type {
 		rout[i] = t.(*itype).complete
 	}
 	return reflect.FuncOf(rin, rout, variadic)
+}
+
+func (info iFuncType) printTo(dst []byte, sep string) []byte {
+	dst = append(append(dst, sep...), "func("...)
+	sep = ""
+	for i, ityp := range info.in {
+		if i == len(info.in)-1 && info.variadic {
+			sep += "..."
+		}
+		dst = ityp.printTo(dst, sep)
+		sep = ", "
+	}
+	dst = append(dst, ") "...)
+	if len(info.out) > 1 {
+		dst = append(dst, '(')
+	}
+	sep = ""
+	for _, ityp := range info.out {
+		dst = ityp.printTo(dst, sep)
+		sep = ", "
+	}
+	if len(info.out) > 1 {
+		dst = append(dst, ')')
+	}
+	return dst
+}
+
+func (info iFuncType) prepareRtype(t *itype) {
+	panic("unimplemented")
+}
+
+func (info iFuncType) completeType(t *itype) {
+	panic("unimplemented")
 }

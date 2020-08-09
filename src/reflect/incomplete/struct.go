@@ -9,25 +9,6 @@ import (
 	"strconv"
 )
 
-type iStructType struct {
-	fields []StructField
-}
-
-func (info iStructType) printTo(dst []byte, sep string) []byte {
-	dst = append(append(dst, sep...), "struct "...)
-	sep = "{ "
-	for i := range info.fields {
-		dst = info.fields[i].printTo(dst, sep)
-		sep = "; "
-	}
-	if len(info.fields) == 0 {
-		dst = append(dst, "{}"...)
-	} else {
-		dst = append(dst, " }"...)
-	}
-	return dst
-}
-
 // StructField is analogous to reflect.StructField, minus the Index and Offset
 // fields.
 type StructField struct {
@@ -37,21 +18,8 @@ type StructField struct {
 	Anonymous     bool
 }
 
-func (field *StructField) toReflect() reflect.StructField {
-	return reflect.StructField{
-		Name:      field.Name,
-		PkgPath:   field.PkgPath,
-		Type:      field.Type.(*itype).complete,
-		Tag:       field.Tag,
-		Offset:    0,
-		Index:     nil,
-		Anonymous: field.Anonymous,
-	}
-}
-
-func (field *StructField) printTo(bytes []byte, separator string) []byte {
-	return append(append(append(append(bytes,
-		separator...), field.Name...), ' '), field.Type.string()...)
+type iStructType struct {
+	fields []StructField
 }
 
 // StructOf is analogous to reflect.StructOf.
@@ -98,4 +66,40 @@ func reflectStructOf(fields []StructField) reflect.Type {
 		rfields[i] = field.toReflect()
 	}
 	return reflect.StructOf(rfields)
+}
+
+func (field *StructField) toReflect() reflect.StructField {
+	return reflect.StructField{
+		Name:      field.Name,
+		PkgPath:   field.PkgPath,
+		Type:      field.Type.(*itype).complete,
+		Tag:       field.Tag,
+		Offset:    0,
+		Index:     nil,
+		Anonymous: field.Anonymous,
+	}
+}
+
+func (field *StructField) printTo(bytes []byte, separator string) []byte {
+	return append(append(append(append(bytes,
+		separator...), field.Name...), ' '), field.Type.string()...)
+}
+
+func (info iStructType) printTo(dst []byte, sep string) []byte {
+	dst = append(append(dst, sep...), "struct "...)
+	sep = "{ "
+	for i := range info.fields {
+		dst = info.fields[i].printTo(dst, sep)
+		sep = "; "
+	}
+	if len(info.fields) == 0 {
+		dst = append(dst, "{}"...)
+	} else {
+		dst = append(dst, " }"...)
+	}
+	return dst
+}
+
+func (info iStructType) completeType(t *itype) {
+	panic("unimplemented")
 }

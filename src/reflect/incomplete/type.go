@@ -12,7 +12,6 @@ package incomplete
 import (
 	"reflect"
 	"sync"
-	"unsafe"
 )
 
 // Type represents an incomplete type, or part of an incomplete composite type.
@@ -48,7 +47,7 @@ type Type interface {
 	string() string
 
 	// unexported
-	printable
+	iAnyType
 }
 
 // analogous to reflect.Kind.
@@ -144,10 +143,7 @@ type itype struct {
 	iflag      iflag
 	incomplete *rtype
 	complete   reflect.Type // nil if not known yet
-	// nil or one of: *itype, iArrayType, iChanType, iFuncType,
-	// iInterfaceType, iMapType, iPtrType, iSliceType, iStructType
-	info   iAnyType
-	finish func() // finishes 'complete' after completeType() created it
+	info       iAnyType     // always non-nil
 }
 
 // namedType contains the name, pkgPath and methods for named types
@@ -164,33 +160,12 @@ type qname struct {
 	str     string // string representation
 }
 
+// one of: *itype, iArrayType, iChanType, iFuncType,
+// iInterfaceType, iMapType, iPtrType, iSliceType, iStructType
 type iAnyType interface {
-	printable
+	printTo(dst []byte, separator string) []byte
 	prepareRtype(*itype)
 	completeType(*itype)
-}
-
-type iArrayType struct {
-	elem  Type
-	count int
-}
-
-type iChanType struct {
-	elem Type
-	dir  reflect.ChanDir
-}
-
-type iMapType struct {
-	key  Type
-	elem Type
-}
-
-type iPtrType struct {
-	elem Type
-}
-
-type iSliceType struct {
-	elem Type
 }
 
 // itype methods
@@ -268,6 +243,16 @@ func (t *itype) fieldAlign() uint8 {
 	} else {
 		panic("reflect/incomplete error: Type fieldAlign should be known, but it is not")
 	}
+}
+
+func (t *itype) setSize(size uintptr, align uint8, fieldAlign uint8) {
+	if t.incomplete == nil {
+		t.incomplete = &rtype{}
+	}
+	t.incomplete.size = size
+	t.incomplete.align = align
+	t.incomplete.fieldAlign = fieldAlign
+	t.iflag |= iflagSize
 }
 
 func descendType(t *itype) {
@@ -376,113 +361,39 @@ func filename(path string) string {
 	return path
 }
 
-// ArrayOf creates an incomplete array type with the given count and
-// element type described by elem.
-func ArrayOf(count int, elem Type) Type {
-	if count < 0 {
-		panic("incomplete.ArrayOf: element count is negative")
-	}
-	ielem := elem.(*itype)
-	if ielem.complete != nil {
-		return Of(reflect.ArrayOf(count, ielem.complete))
-	}
-	return &itype{
-		named:      nil,
-		comparable: ielem.comparable,
-		iflag:      ielem.iflag & iflagSize,
-		incomplete: &rtype{
-			size: uintptr(count) * ielem.size(),
-			kind: kArray,
-		},
-		info: iArrayType{
-			elem:  elem,
-			count: count,
-		},
+func (t *itype) printTo(bytes []byte, separator string) []byte {
+	bytes = append(bytes, separator...)
+	if t.complete != nil {
+		return append(bytes, t.complete.String()...)
+	} else if t.named != nil {
+		return append(bytes, t.named.str...)
+	} else if t.info != nil {
+		return t.info.printTo(bytes, "")
+	} else {
+		panic("reflect/incomplete error: Type string representation should be known, but it is not")
 	}
 }
 
-var rtypeChan *rtype = unwrap(reflect.TypeOf(make(chan unsafe.Pointer)))
-
-// ChanOf is analogous to reflect.ChanOf.
-func ChanOf(dir reflect.ChanDir, elem Type) Type {
-	ielem := elem.(*itype)
-	if ielem.complete != nil {
-		return Of(reflect.ChanOf(dir, ielem.complete))
+// prepareRtype replaces t.incomplete with an *rtype followed in memory
+// by one of: arrayType, chanType, funcType, interfaceType, mapType, ptrType
+// sliceType, sliceType, structType as expected by reflect.
+//
+// it also sets t.incomplete.hash
+func (u *itype) prepareRtype(t *itype) {
+	if t.complete != nil || t.iflag&iflagRtype != 0 {
+		return
 	}
-	incomplete := *rtypeChan
-	return &itype{
-		named:      nil,
-		comparable: ttrue,
-		iflag:      iflagSize,
-		incomplete: &incomplete,
-		info: iChanType{
-			elem: elem,
-			dir:  dir,
-		},
-	}
+	// u.info may be another *itype with the same underlying type as t,
+	// or one of iArrayType, iChanType ... iStructType
+	u.info.prepareRtype(t)
+	t.iflag |= iflagRtype
 }
 
-var rtypeMap *rtype = unwrap(reflect.TypeOf(make(map[unsafe.Pointer]unsafe.Pointer)))
-
-// MapOf creates an incomplete map type with the given key and element types.
-func MapOf(key, elem Type) Type {
-	ikey := key.(*itype)
-	ielem := elem.(*itype)
-	if ikey.complete != nil && ielem.complete != nil {
-		return Of(reflect.MapOf(ikey.complete, ielem.complete))
+func (u *itype) completeType(t *itype) {
+	if t.complete != nil {
+		return
 	}
-	if ikey.comparable == tfalse {
-		panic("incomplete.MapOf: invalid key type, is not comparable")
-	}
-	incomplete := *rtypeMap
-	return &itype{
-		named:      nil,
-		comparable: tfalse,
-		iflag:      iflagSize,
-		incomplete: &incomplete,
-		info: iMapType{
-			key:  key,
-			elem: elem,
-		},
-	}
-}
-
-var rtypePtr *rtype = unwrap(reflect.TypeOf(new(unsafe.Pointer)))
-
-// PtrTo is analogous to reflect.PtrTo.
-func PtrTo(elem Type) Type {
-	ielem := elem.(*itype)
-	if ielem.complete != nil {
-		return Of(reflect.PtrTo(ielem.complete))
-	}
-	incomplete := *rtypePtr
-	return &itype{
-		named:      nil,
-		comparable: ttrue,
-		iflag:      iflagSize,
-		incomplete: &incomplete,
-		info: iPtrType{
-			elem: elem,
-		},
-	}
-}
-
-var rtypeSlice *rtype = unwrap(reflect.TypeOf(make([]unsafe.Pointer, 0)))
-
-// SliceOf is analogous to reflect.SliceOf.
-func SliceOf(elem Type) Type {
-	ielem := elem.(*itype)
-	if ielem.complete != nil {
-		return Of(reflect.SliceOf(ielem.complete))
-	}
-	incomplete := *rtypeSlice
-	return &itype{
-		named:      nil,
-		incomplete: &incomplete,
-		comparable: tfalse,
-		iflag:      iflagSize,
-		info: iSliceType{
-			elem: elem,
-		},
-	}
+	// u.info may be another *itype with the same underlying type,
+	// or one of iArrayType, iChanType ... iStructType
+	u.info.completeType(t)
 }

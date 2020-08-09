@@ -1853,19 +1853,12 @@ func MapOf(key, elem Type) Type {
 		}
 	}
 
-	mt := makeMapType(ktyp, etyp, s)
-
-	ti, _ := lookupCache.LoadOrStore(ckey, &mt.rtype)
-	return ti.(Type)
-}
-
-// Make a map type.
-// Note: flag values must match those used in the TMAP case
-// in ../cmd/compile/internal/gc/reflect.go:dtypesym.
-func makeMapType(ktyp *rtype, etyp *rtype, str string) *mapType {
+	// Make a map type.
+	// Note: flag values must match those used in the TMAP case
+	// in ../cmd/compile/internal/gc/reflect.go:dtypesym.
 	var imap interface{} = (map[unsafe.Pointer]unsafe.Pointer)(nil)
 	mt := **(**mapType)(unsafe.Pointer(&imap))
-	mt.str = resolveReflectName(newName(str, "", false))
+	mt.str = resolveReflectName(newName(s, "", false))
 	mt.tflag = 0
 	mt.hash = fnv1(etyp.hash, 'm', byte(ktyp.hash>>24), byte(ktyp.hash>>16), byte(ktyp.hash>>8), byte(ktyp.hash))
 	mt.key = ktyp
@@ -1898,7 +1891,9 @@ func makeMapType(ktyp *rtype, etyp *rtype, str string) *mapType {
 		mt.flags |= 16
 	}
 	mt.ptrToThis = 0
-	return &mt
+
+	ti, _ := lookupCache.LoadOrStore(ckey, &mt.rtype)
+	return ti.(Type)
 }
 
 // TODO(crawshaw): as these funcTypeFixedN structs have no methods,
@@ -2843,21 +2838,12 @@ func ArrayOf(count int, elem Type) Type {
 		}
 	}
 
-	array := makeArrayType(count, typ, s)
-
-	ti, _ := lookupCache.LoadOrStore(ckey, &array.rtype)
-	return ti.(Type)
-}
-
-// Make an array type.
-func makeArrayType(count int, elem *rtype, str string) *arrayType {
-	typ := elem
-
+	// Make an array type.
 	var iarray interface{} = [1]unsafe.Pointer{}
 	prototype := *(**arrayType)(unsafe.Pointer(&iarray))
 	array := *prototype
 	array.tflag = typ.tflag & tflagRegularMemory
-	array.str = resolveReflectName(newName(str, "", false))
+	array.str = resolveReflectName(newName(s, "", false))
 	array.hash = fnv1(typ.hash, '[')
 	for n := uint32(count); n > 0; n >>= 8 {
 		array.hash = fnv1(array.hash, byte(n))
@@ -2878,7 +2864,7 @@ func makeArrayType(count int, elem *rtype, str string) *arrayType {
 	array.align = typ.align
 	array.fieldAlign = typ.fieldAlign
 	array.len = uintptr(count)
-	array.slice = SliceOf(toType(typ)).(*rtype)
+	array.slice = SliceOf(elem).(*rtype)
 
 	switch {
 	case typ.ptrdata == 0 || array.size == 0:
@@ -2956,7 +2942,9 @@ func makeArrayType(count int, elem *rtype, str string) *arrayType {
 	default:
 		array.kind &^= kindDirectIface
 	}
-	return &array
+
+	ti, _ := lookupCache.LoadOrStore(ckey, &array.rtype)
+	return ti.(Type)
 }
 
 func appendVarint(x []byte, v uintptr) []byte {

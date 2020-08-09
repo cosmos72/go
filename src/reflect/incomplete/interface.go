@@ -41,3 +41,25 @@ func InterfaceOf(embedded []Type, method []Method) Type {
 		},
 	}
 }
+
+func (info iInterfaceType) printTo(dst []byte, sep string) []byte {
+	dst = append(append(dst, sep...), "interface{"...)
+
+	if len(info.allMethod) == 0 {
+		return append(dst, '}')
+	}
+	sep = " "
+	for i := range info.allMethod {
+		info.allMethod[i].printTo(dst, sep)
+		sep = "; "
+	}
+	return append(dst, " }"...)
+}
+
+func (info iInterfaceType) prepareRtype(t *itype) {
+	panic("unimplemented")
+}
+
+func (info iInterfaceType) completeType(t *itype) {
+	panic("unimplemented")
+}
