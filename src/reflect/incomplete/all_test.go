@@ -11,12 +11,24 @@ import (
 )
 
 func compare(t *testing.T, actual Type, expected Type) {
-	if !reflect.DeepEqual(actual, expected) {
-		t.Errorf("\n\texpected  %+v\n\tactual    %+v", expected, actual)
+	iactual := *actual.(*itype)
+	iexpected := *expected.(*itype)
+	ractual := iactual.incomplete
+	rexpected := iexpected.incomplete
+	iactual.incomplete = nil
+	iexpected.incomplete = nil
+
+	ok := reflect.DeepEqual(&iactual, &iexpected) &&
+		reflect.DeepEqual(ractual, rexpected)
+	if !ok && ractual != nil && rexpected != nil && ractual.equal != nil && rexpected.equal != nil {
+		ractualcopy := *ractual
+		rexpectedcopy := *rexpected
+		ractualcopy.equal = nil
+		rexpectedcopy.equal = nil
+		ok = reflect.DeepEqual(&ractualcopy, &rexpectedcopy)
 	}
-	ractual := actual.(*itype).incomplete
-	rexpected := expected.(*itype).incomplete
-	if !reflect.DeepEqual(ractual, rexpected) {
+	if !ok {
+		t.Errorf("\n\texpected  %+v\n\tactual    %+v", expected, actual)
 		t.Errorf("\n\texpected.incomplete  %+v\n\tactual.incomplete    %+v", rexpected, ractual)
 	}
 
@@ -201,6 +213,31 @@ func TestPtrTo(t *testing.T) {
 	}
 }
 
+func TestPtrToNamed(t *testing.T) {
+	name, pkgPath := "foo", "my/pkg/path"
+	elem := NamedOf(name, pkgPath)
+	actual := PtrTo(elem)
+	expected := &itype{
+		named:      nil,
+		comparable: ttrue,
+		iflag:      iflagSize,
+		incomplete: &rtype{
+			size:       ptrSize,
+			ptrdata:    ptrSize,
+			tflag:      tflagRegularMemory,
+			align:      ptrSize,
+			fieldAlign: ptrSize,
+			kind:       kPtr | kindDirectIface,
+			equal:      actual.(*itype).incomplete.equal,
+			gcdata:     actual.(*itype).incomplete.gcdata,
+		},
+		info: &iPtrType{
+			elem: elem,
+		},
+	}
+	compare(t, actual, expected)
+}
+
 func TestSliceOf(t *testing.T) {
 	for _, x := range values {
 		rt := reflect.TypeOf(x)
@@ -212,6 +249,31 @@ func TestSliceOf(t *testing.T) {
 		}
 		compare(t, actual, expected)
 	}
+}
+
+func TestSliceOfNamed(t *testing.T) {
+	name, pkgPath := "foo", "my/pkg/path"
+	elem := NamedOf(name, pkgPath)
+	actual := SliceOf(elem)
+	expected := &itype{
+		named:      nil,
+		comparable: tfalse,
+		iflag:      iflagSize,
+		incomplete: &rtype{
+			size:       3 * ptrSize,
+			ptrdata:    ptrSize,
+			tflag:      0,
+			align:      ptrSize,
+			fieldAlign: ptrSize,
+			kind:       kSlice,
+			equal:      actual.(*itype).incomplete.equal,
+			gcdata:     actual.(*itype).incomplete.gcdata,
+		},
+		info: &iSliceType{
+			elem: elem,
+		},
+	}
+	compare(t, actual, expected)
 }
 
 func TestStructOf(t *testing.T) {

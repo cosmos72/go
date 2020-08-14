@@ -28,6 +28,8 @@ func PtrTo(elem Type) Type {
 	// TODO: pointer to named type may have methods
 	var iptr interface{} = (*unsafe.Pointer)(nil)
 	pp := **(**ptrType)(unsafe.Pointer(&iptr))
+	pp.hash = 0
+	pp.str = 0
 	pp.ptrToThis = 0
 	pp.elem = nil
 

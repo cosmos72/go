@@ -28,6 +28,8 @@ func SliceOf(elem Type) Type {
 	var islice interface{} = ([]unsafe.Pointer)(nil)
 	slice := **(**sliceType)(unsafe.Pointer(&islice))
 	slice.tflag = 0
+	slice.str = 0
+	slice.hash = 0
 	slice.ptrToThis = 0
 	slice.elem = nil
 
