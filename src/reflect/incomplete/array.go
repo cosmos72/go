@@ -41,20 +41,20 @@ func ArrayOf(count int, elem Type) Type {
 		comparable: ielem.comparable,
 		iflag:      ielem.iflag & iflagSize,
 		incomplete: &array.rtype,
-		info: iArrayType{
+		info: &iArrayType{
 			elem:  elem,
 			count: count,
 		},
 	}
 }
 
-func (info iArrayType) printTo(dst []byte, sep string) []byte {
+func (info *iArrayType) printTo(dst []byte, sep string) []byte {
 	dst = append(append(append(append(
 		dst, sep...), '['), strconv.Itoa(info.count)...), ']')
 	return info.elem.printTo(dst, "")
 }
 
-func (info iArrayType) computeSize(t *itype, work map[*itype]struct{}) bool {
+func (info *iArrayType) computeSize(t *itype, work map[*itype]struct{}) bool {
 	ielem := info.elem.(*itype)
 	if !ielem.computeSize(ielem, work) {
 		return false
@@ -71,7 +71,7 @@ func (info iArrayType) computeSize(t *itype, work map[*itype]struct{}) bool {
 	return true
 }
 
-func (info iArrayType) computePtrData(t *itype) {
+func (info *iArrayType) computePtrData(t *itype) {
 	count := info.count
 	array := (*arrayType)(unsafe.Pointer(t.incomplete))
 
@@ -135,10 +135,10 @@ func (info iArrayType) computePtrData(t *itype) {
 	}
 }
 
-func (info iArrayType) computeHashStr(t *itype) {
+func (info *iArrayType) computeHashStr(t *itype) {
 	panic("unimplemented")
 }
 
-func (info iArrayType) completeType(t *itype) {
+func (info *iArrayType) completeType(t *itype) {
 	panic("unimplemented")
 }

@@ -31,32 +31,34 @@ func MapOf(key, elem Type) Type {
 	mt.tflag = 0
 	mt.flags = 0
 	mt.ptrToThis = 0
+	mt.key = nil
+	mt.elem = nil
 
 	return &itype{
 		named:      nil,
 		comparable: tfalse,
 		iflag:      iflagSize,
 		incomplete: &mt.rtype,
-		info: iMapType{
+		info: &iMapType{
 			key:  key,
 			elem: elem,
 		},
 	}
 }
 
-func (info iMapType) printTo(dst []byte, sep string) []byte {
+func (info *iMapType) printTo(dst []byte, sep string) []byte {
 	dst = append(append(dst, sep...), "map["...)
 	dst = info.key.printTo(dst, "")
 	dst = append(dst, ']')
 	return info.elem.printTo(dst, "")
 }
 
-func (info iMapType) computeSize(t *itype, work map[*itype]struct{}) bool {
+func (info *iMapType) computeSize(t *itype, work map[*itype]struct{}) bool {
 	// maps always have known, fixed size
 	return true
 }
 
-func (info iMapType) computeHashStr(t *itype) {
+func (info *iMapType) computeHashStr(t *itype) {
 	ikey := info.elem.(*itype)
 	computeHashStr(ikey)
 	if ikey.incomplete.equal == nil {

@@ -230,18 +230,11 @@ func descendType(t *itype) {
 }
 
 func computeSize(t *itype, work map[*itype]struct{}) bool {
-	if t.iflag&iflagSize != 0 {
-		return true
-	}
 	return t.computeSize(t, work)
 }
 
 func computeHashStr(t *itype) {
-	if t.complete != nil || t.iflag&iflagHashStr != 0 {
-		return
-	}
 	t.computeHashStr(t)
-	t.iflag |= iflagHashStr
 }
 
 func completeType(t *itype) {

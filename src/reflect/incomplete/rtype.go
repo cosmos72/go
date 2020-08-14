@@ -208,7 +208,3 @@ type structType struct {
 type name struct {
 	bytes *byte
 }
-
-func (info iStructType) computeHashStr(t *itype) {
-	panic("unimplemented")
-}

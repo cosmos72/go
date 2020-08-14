@@ -33,7 +33,7 @@ func InterfaceOf(embedded []Type, method []Method) Type {
 			fieldAlign: rtypeInterface.fieldAlign,
 			kind:       kInterface,
 		},
-		info: iInterfaceType{
+		info: &iInterfaceType{
 			// safety: make a copy of embedded[]
 			embedded: append(([]Type)(nil), embedded...),
 			// safety: make a copy of method[]
@@ -42,7 +42,7 @@ func InterfaceOf(embedded []Type, method []Method) Type {
 	}
 }
 
-func (info iInterfaceType) printTo(dst []byte, sep string) []byte {
+func (info *iInterfaceType) printTo(dst []byte, sep string) []byte {
 	dst = append(append(dst, sep...), "interface{"...)
 
 	if len(info.allMethod) == 0 {
@@ -56,15 +56,15 @@ func (info iInterfaceType) printTo(dst []byte, sep string) []byte {
 	return append(dst, " }"...)
 }
 
-func (info iInterfaceType) computeSize(t *itype, work map[*itype]struct{}) bool {
+func (info *iInterfaceType) computeSize(t *itype, work map[*itype]struct{}) bool {
 	// interfaces always have known, fixed size
 	return true
 }
 
-func (info iInterfaceType) computeHashStr(t *itype) {
+func (info *iInterfaceType) computeHashStr(t *itype) {
 	panic("unimplemented")
 }
 
-func (info iInterfaceType) completeType(t *itype) {
+func (info *iInterfaceType) completeType(t *itype) {
 	panic("unimplemented")
 }

@@ -164,7 +164,7 @@ func (t *itype) printTo(bytes []byte, separator string) []byte {
 }
 
 func (u *itype) computeSize(t *itype, work map[*itype]struct{}) bool {
-	if t.iflag&iflagSize != 0 {
+	if t.complete != nil || t.iflag&iflagSize != 0 {
 		return true
 	}
 	if u.info == nil {
@@ -198,6 +198,8 @@ func (u *itype) computeHashStr(t *itype) {
 	// u.info may be another *itype with the same underlying type as t,
 	// or one of iArrayType, iChanType ... iStructType
 	u.info.computeHashStr(t)
+
+	t.iflag |= iflagHashStr
 }
 
 func (u *itype) completeType(t *itype) {

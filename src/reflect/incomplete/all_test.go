@@ -81,7 +81,7 @@ func TestInterfaceOf(t *testing.T) {
 			fieldAlign: rtypeInterface.fieldAlign,
 			kind:       kInterface,
 		},
-		info: iInterfaceType{},
+		info: &iInterfaceType{},
 	}
 	compare(t, actual, expected)
 }

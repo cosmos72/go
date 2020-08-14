@@ -34,14 +34,14 @@ func ChanOf(dir reflect.ChanDir, elem Type) Type {
 		comparable: ttrue,
 		iflag:      iflagSize,
 		incomplete: &ch.rtype,
-		info: iChanType{
+		info: &iChanType{
 			elem: elem,
 			dir:  dir,
 		},
 	}
 }
 
-func (info iChanType) printTo(dst []byte, sep string) []byte {
+func (info *iChanType) printTo(dst []byte, sep string) []byte {
 	prefix := "chan "
 	if info.dir == reflect.RecvDir {
 		prefix = "<-chan "
@@ -52,12 +52,12 @@ func (info iChanType) printTo(dst []byte, sep string) []byte {
 	return info.elem.printTo(dst, "")
 }
 
-func (info iChanType) computeSize(t *itype, work map[*itype]struct{}) bool {
+func (info *iChanType) computeSize(t *itype, work map[*itype]struct{}) bool {
 	// channels always have known, fixed size
 	return true
 }
 
-func (info iChanType) computeHashStr(t *itype) {
+func (info *iChanType) computeHashStr(t *itype) {
 	ielem := info.elem.(*itype)
 	computeHashStr(ielem)
 
@@ -68,6 +68,6 @@ func (info iChanType) computeHashStr(t *itype) {
 	ch.elem = ielem.incomplete
 }
 
-func (info iChanType) completeType(t *itype) {
+func (info *iChanType) completeType(t *itype) {
 	panic("unimplemented")
 }

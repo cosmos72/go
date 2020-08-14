@@ -37,7 +37,7 @@ func FuncOf(in, out []Type, variadic bool) Type {
 			fieldAlign: rtypeFunc.fieldAlign,
 			kind:       kFunc,
 		},
-		info: iFuncType{
+		info: &iFuncType{
 			// safety: make a copy of in[] and out[]
 			in:       append(([]Type)(nil), in...),
 			out:      append(([]Type)(nil), out...),
@@ -58,7 +58,7 @@ func reflectFuncOf(in []Type, out []Type, variadic bool) reflect.Type {
 	return reflect.FuncOf(rin, rout, variadic)
 }
 
-func (info iFuncType) printTo(dst []byte, sep string) []byte {
+func (info *iFuncType) printTo(dst []byte, sep string) []byte {
 	dst = append(append(dst, sep...), "func("...)
 	sep = ""
 	for i, ityp := range info.in {
@@ -83,15 +83,15 @@ func (info iFuncType) printTo(dst []byte, sep string) []byte {
 	return dst
 }
 
-func (info iFuncType) computeSize(t *itype, work map[*itype]struct{}) bool {
+func (info *iFuncType) computeSize(t *itype, work map[*itype]struct{}) bool {
 	// functions always have known, fixed size
 	return true
 }
 
-func (info iFuncType) computeHashStr(t *itype) {
+func (info *iFuncType) computeHashStr(t *itype) {
 	panic("unimplemented")
 }
 
-func (info iFuncType) completeType(t *itype) {
+func (info *iFuncType) completeType(t *itype) {
 	panic("unimplemented")
 }

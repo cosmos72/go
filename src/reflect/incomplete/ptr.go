@@ -30,23 +30,23 @@ func PtrTo(elem Type) Type {
 		comparable: ttrue,
 		iflag:      iflagSize,
 		incomplete: &pp.rtype,
-		info: iPtrType{
+		info: &iPtrType{
 			elem: elem,
 		},
 	}
 }
 
-func (info iPtrType) printTo(dst []byte, sep string) []byte {
+func (info *iPtrType) printTo(dst []byte, sep string) []byte {
 	dst = append(append(dst, sep...), '*')
 	return info.elem.printTo(dst, "")
 }
 
-func (info iPtrType) computeSize(t *itype, work map[*itype]struct{}) bool {
+func (info *iPtrType) computeSize(t *itype, work map[*itype]struct{}) bool {
 	// pointers always have known, fixed size
 	return true
 }
 
-func (info iPtrType) computeHashStr(t *itype) {
+func (info *iPtrType) computeHashStr(t *itype) {
 	ielem := info.elem.(*itype)
 	computeHashStr(ielem)
 
@@ -65,6 +65,6 @@ func (info iPtrType) computeHashStr(t *itype) {
 	pp.elem = ielem.incomplete
 }
 
-func (info iPtrType) completeType(t *itype) {
+func (info *iPtrType) completeType(t *itype) {
 	panic("unimplemented")
 }

@@ -53,7 +53,7 @@ func StructOf(fields []StructField) Type {
 		incomplete: &rtype{
 			kind: kStruct,
 		},
-		info: iStructType{
+		info: &iStructType{
 			// safety: make a copy of fields[]
 			fields: append(([]StructField)(nil), fields...),
 		},
@@ -85,7 +85,7 @@ func (field *StructField) printTo(bytes []byte, separator string) []byte {
 		separator...), field.Name...), ' '), field.Type.string()...)
 }
 
-func (info iStructType) printTo(dst []byte, sep string) []byte {
+func (info *iStructType) printTo(dst []byte, sep string) []byte {
 	dst = append(append(dst, sep...), "struct "...)
 	sep = "{ "
 	for i := range info.fields {
@@ -100,7 +100,7 @@ func (info iStructType) printTo(dst []byte, sep string) []byte {
 	return dst
 }
 
-func (info iStructType) computeSize(t *itype, work map[*itype]struct{}) bool {
+func (info *iStructType) computeSize(t *itype, work map[*itype]struct{}) bool {
 	var size, lastzero uintptr
 	var align, fieldAlign uint8
 	ok := true
@@ -145,6 +145,10 @@ func doAlign(x, n uintptr) uintptr {
 	return (x + n - 1) &^ (n - 1)
 }
 
-func (info iStructType) completeType(t *itype) {
+func (info iStructType) computeHashStr(t *itype) {
+	panic("unimplemented")
+}
+
+func (info *iStructType) completeType(t *itype) {
 	panic("unimplemented")
 }
