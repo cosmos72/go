@@ -34,6 +34,7 @@ func MapOf(key, elem Type) Type {
 	mt.key = nil
 	mt.elem = nil
 
+	// TODO canonicalize return value
 	return &itype{
 		named:      nil,
 		comparable: tfalse,
@@ -68,7 +69,6 @@ func (info *iMapType) computeHashStr(t *itype) {
 	ielem := info.elem.(*itype)
 	computeHashStr(ielem)
 
-	// TODO canonicalize t.incomplete, ikey.incomplete and ielem.incomplete
 	prepareMapType(t.incomplete, ikey.incomplete, ielem.incomplete, t.string())
 }
 

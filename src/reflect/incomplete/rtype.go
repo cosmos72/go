@@ -121,6 +121,11 @@ type funcType struct {
 	outCount uint16 // top bit is set if last input parameter is ...
 }
 
+const (
+	funcOutCountVariadic uint16 = 1 << 15
+	funcOutCountMask     uint16 = funcOutCountVariadic - 1
+)
+
 // imethod represents a method on an interface type
 type imethod struct {
 	name nameOff // name of method

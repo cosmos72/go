@@ -5,7 +5,7 @@
 package incomplete
 
 import (
-	"reflect"
+	"unsafe"
 )
 
 type iInterfaceType struct {
@@ -14,25 +14,36 @@ type iInterfaceType struct {
 	allMethod      []Method // ordered alphabetically
 }
 
-var rtypeInterface *rtype = unwrap(reflect.TypeOf((*interface{})(nil)).Elem())
+// do NOT modify!
+var interfaceProto interfaceType = makeInterfacePrototype()
+
+func makeInterfacePrototype() interfaceType {
+	var interfaceptr interface{} = (*interface{})(nil)
+	ptr := *(**ptrType)(unsafe.Pointer(&interfaceptr))
+
+	iface := *(*interfaceType)(unsafe.Pointer(ptr.elem))
+	iface.hash = 0
+	iface.equal = nil
+	iface.str = 0
+	iface.ptrToThis = 0
+	iface.pkgPath.bytes = nil
+	iface.methods = nil
+	return iface
+}
 
 // InterfaceOf returns an incomplete interface type with the given list of
 // named interface types. InterfaceOf panics if one of the given embedded types
 // is unnamed or its kind is not reflect.Interface. It also panics if types
 // with distinct, non-empty package paths are embedded.
-//
-// Explicit methods can be added with AddMethod.
 func InterfaceOf(embedded []Type, method []Method) Type {
+
+	iface := interfaceProto
+
 	return &itype{
 		named:      nil,
 		comparable: ttrue,
 		iflag:      iflagSize,
-		incomplete: &rtype{
-			size:       rtypeInterface.size,
-			align:      rtypeInterface.align,
-			fieldAlign: rtypeInterface.fieldAlign,
-			kind:       kInterface,
-		},
+		incomplete: &iface.rtype,
 		info: &iInterfaceType{
 			// safety: make a copy of embedded[]
 			embedded: append(([]Type)(nil), embedded...),

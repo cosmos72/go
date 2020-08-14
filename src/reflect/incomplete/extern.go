@@ -65,3 +65,7 @@ func typehash(t *rtype, p unsafe.Pointer, h uintptr) uintptr
 func unwrap(t reflect.Type) *rtype {
 	return *(**rtype)(unsafe.Pointer(&t))
 }
+
+// convert *incomplete.rtype to reflect.Type
+//go:linkname wrap reflect.toType
+func wrap(rt *rtype) reflect.Type

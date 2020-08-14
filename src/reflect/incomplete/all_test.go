@@ -12,10 +12,16 @@ import (
 
 func compare(t *testing.T, actual Type, expected Type) {
 	if !reflect.DeepEqual(actual, expected) {
-		t.Errorf("\n\texpected\t%+v\n\tactual\t%+v", expected, actual)
+		t.Errorf("\n\texpected  %+v\n\tactual    %+v", expected, actual)
 	}
+	ractual := actual.(*itype).incomplete
+	rexpected := expected.(*itype).incomplete
+	if !reflect.DeepEqual(ractual, rexpected) {
+		t.Errorf("\n\texpected.incomplete  %+v\n\tactual.incomplete    %+v", rexpected, ractual)
+	}
+
 	if actual.string() != expected.string() {
-		t.Errorf("\n\texpected\t%s\n\tactual\t%s", expected.string(), actual.string())
+		t.Errorf("\n\texpected  %s\n\tactual    %s", expected.string(), actual.string())
 	}
 }
 
@@ -75,13 +81,8 @@ func TestInterfaceOf(t *testing.T) {
 	expected := &itype{
 		comparable: ttrue,
 		iflag:      iflagSize,
-		incomplete: &rtype{
-			size:       rtypeInterface.size,
-			align:      rtypeInterface.align,
-			fieldAlign: rtypeInterface.fieldAlign,
-			kind:       kInterface,
-		},
-		info: &iInterfaceType{},
+		incomplete: &interfaceProto.rtype,
+		info:       &iInterfaceType{},
 	}
 	compare(t, actual, expected)
 }
