@@ -81,6 +81,10 @@ const (
 	kString        = kind(reflect.String)
 	kStruct        = kind(reflect.Struct)
 	kUnsafePointer = kind(reflect.UnsafePointer)
+
+	kindDirectIface = 1 << 5
+	kindGCProg      = 1 << 6 // Type.gc points to GC program
+	kindMask        = (1 << 5) - 1
 )
 
 // tflag is used by an itype to signal what extra type information is available.
@@ -90,13 +94,12 @@ const (
 	// iflagDefined means Define was called on the type
 	iflagDefined iflag = 1 << 0
 
-	// iflagRtype means the type has an 'incomplete' field followed in memory
-	// by one of: arrayType, chanType, funcType, interfaceType, mapType, ptrType
-	// sliceType, sliceType, structType as expected by reflect.
-	iflagRtype = 1 << 1
+	// iflagSize means the type has known fields: size, align, fieldAlign
+	// and ptrdata
+	iflagSize iflag = 1 << 1
 
-	// iflagSize means the type has known size, align and fieldAlign
-	iflagSize iflag = 1 << 2
+	// iflagHashStr means the type has known fields: hash and str.
+	iflagHashStr = 1 << 2
 )
 
 // tribool is a three-valued boolean: true, false, unknown
@@ -233,12 +236,12 @@ func computeSize(t *itype, work map[*itype]struct{}) bool {
 	return t.computeSize(t, work)
 }
 
-func prepareRtype(t *itype) {
-	if t.complete != nil || t.iflag&iflagRtype != 0 {
+func computeHashStr(t *itype) {
+	if t.complete != nil || t.iflag&iflagHashStr != 0 {
 		return
 	}
-	t.prepareRtype(t)
-	t.iflag |= iflagRtype
+	t.computeHashStr(t)
+	t.iflag |= iflagHashStr
 }
 
 func completeType(t *itype) {

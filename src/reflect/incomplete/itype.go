@@ -42,7 +42,7 @@ type qname struct {
 type iAnyType interface {
 	printTo(dst []byte, separator string) []byte
 	computeSize(t *itype, work map[*itype]struct{}) bool
-	prepareRtype(*itype)
+	computeHashStr(*itype)
 	completeType(*itype)
 }
 
@@ -186,18 +186,18 @@ func push(t *itype, work map[*itype]struct{}) map[*itype]struct{} {
 	return work
 }
 
-// prepareRtype replaces t.incomplete with an *rtype followed in memory
+// computeHashStr replaces t.incomplete with an *rtype followed in memory
 // by one of: arrayType, chanType, funcType, interfaceType, mapType, ptrType
 // sliceType, sliceType, structType as expected by reflect.
 //
 // it also sets t.incomplete.hash
-func (u *itype) prepareRtype(t *itype) {
-	if t.complete != nil || t.iflag&iflagRtype != 0 {
+func (u *itype) computeHashStr(t *itype) {
+	if t.complete != nil || t.iflag&iflagHashStr != 0 {
 		return
 	}
 	// u.info may be another *itype with the same underlying type as t,
 	// or one of iArrayType, iChanType ... iStructType
-	u.info.prepareRtype(t)
+	u.info.computeHashStr(t)
 }
 
 func (u *itype) completeType(t *itype) {

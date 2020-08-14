@@ -26,7 +26,9 @@ func ChanOf(dir reflect.ChanDir, elem Type) Type {
 	ch := **(**chanType)(unsafe.Pointer(&ichan))
 	ch.tflag = tflagRegularMemory
 	ch.dir = uintptr(dir)
+	ch.elem = nil
 
+	// TODO canonicalize return value
 	return &itype{
 		named:      nil,
 		comparable: ttrue,
@@ -55,15 +57,14 @@ func (info iChanType) computeSize(t *itype, work map[*itype]struct{}) bool {
 	return true
 }
 
-func (info iChanType) prepareRtype(t *itype) {
+func (info iChanType) computeHashStr(t *itype) {
 	ielem := info.elem.(*itype)
-	prepareRtype(ielem)
+	computeHashStr(ielem)
 
 	ch := (*chanType)(unsafe.Pointer(t.incomplete))
 	ch.str = resolveReflectName(newName(t.string(), "", false))
 	ch.hash = fnv1(ielem.incomplete.hash, 'c', byte(info.dir))
 
-	// TODO canonicalize ielem.incomplete and t.incomplete
 	ch.elem = ielem.incomplete
 }
 

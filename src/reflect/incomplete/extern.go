@@ -20,12 +20,21 @@ const (
 
 const ptrSize = 4 << (^uintptr(0) >> 63) // unsafe.Sizeof(uintptr(0)) but an ideal const
 
+//go:linkname appendGCProg reflect.appendGCProg
+func appendGCProg(dst []byte, typ *rtype) []byte
+
+//go:linkname appendVarint reflect.appendVarint
+func appendVarint(x []byte, v uintptr) []byte
+
 //go:linkname bucketOf reflect.bucketOf
 func bucketOf(ktyp, etyp *rtype) *rtype
 
 // convert *incomplete.rtype to reflect.Type and canonicalize it
 //go:linkname canonicalize reflect.toType
 func canonicalize(t *rtype) reflect.Type
+
+//go:linkname emitGCMask reflect.emitGCMask
+func emitGCMask(out []byte, base uintptr, typ *rtype, n uintptr)
 
 //go:linkname fnv1 reflect.fnv1
 func fnv1(x uint32, list ...byte) uint32

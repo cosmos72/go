@@ -43,9 +43,9 @@ func (info iSliceType) computeSize(t *itype, work map[*itype]struct{}) bool {
 	return true
 }
 
-func (info iSliceType) prepareRtype(t *itype) {
+func (info iSliceType) computeHashStr(t *itype) {
 	ielem := info.elem.(*itype)
-	prepareRtype(ielem)
+	computeHashStr(ielem)
 
 	// Make a slice type.
 	var islice interface{} = ([]unsafe.Pointer)(nil)

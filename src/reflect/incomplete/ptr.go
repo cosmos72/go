@@ -13,20 +13,23 @@ type iPtrType struct {
 	elem Type
 }
 
-var rtypePtr *rtype = unwrap(reflect.TypeOf(new(unsafe.Pointer)))
-
 // PtrTo is analogous to reflect.PtrTo.
 func PtrTo(elem Type) Type {
 	ielem := elem.(*itype)
 	if ielem.complete != nil {
 		return Of(reflect.PtrTo(ielem.complete))
 	}
-	incomplete := *rtypePtr
+	var iptr interface{} = (*unsafe.Pointer)(nil)
+	pp := **(**ptrType)(unsafe.Pointer(&iptr))
+	pp.ptrToThis = 0
+	pp.elem = nil
+
+	// TODO canonicalize return value
 	return &itype{
 		named:      nil,
 		comparable: ttrue,
 		iflag:      iflagSize,
-		incomplete: &incomplete,
+		incomplete: &pp.rtype,
 		info: iPtrType{
 			elem: elem,
 		},
@@ -43,16 +46,13 @@ func (info iPtrType) computeSize(t *itype, work map[*itype]struct{}) bool {
 	return true
 }
 
-func (info iPtrType) prepareRtype(t *itype) {
+func (info iPtrType) computeHashStr(t *itype) {
 	ielem := info.elem.(*itype)
-	prepareRtype(ielem)
+	computeHashStr(ielem)
 
-	var iptr interface{} = (*unsafe.Pointer)(nil)
-	prototype := *(**ptrType)(unsafe.Pointer(&iptr))
-	pp := *prototype
+	pp := (*ptrType)(unsafe.Pointer(t.incomplete))
 
-	s := t.string()
-	pp.str = resolveReflectName(newName(s, "", false))
+	pp.str = resolveReflectName(newName(t.string(), "", false))
 	pp.ptrToThis = 0
 
 	// For the type structures linked into the binary, the
@@ -62,9 +62,7 @@ func (info iPtrType) prepareRtype(t *itype) {
 	// old hash and the new "*".
 	pp.hash = fnv1(ielem.incomplete.hash, '*')
 
-	// TODO canonicalize ielem.incomplete and t.incomplete
 	pp.elem = ielem.incomplete
-	t.incomplete = &pp.rtype
 }
 
 func (info iPtrType) completeType(t *itype) {

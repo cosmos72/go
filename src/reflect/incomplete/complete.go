@@ -35,7 +35,7 @@ func Complete(
 		}
 	}
 	for _, t := range in {
-		prepareRtype(t.(*itype))
+		computeHashStr(t.(*itype))
 	}
 	for _, t := range in {
 		completeType(t.(*itype))

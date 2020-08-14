@@ -61,7 +61,7 @@ func (info iInterfaceType) computeSize(t *itype, work map[*itype]struct{}) bool 
 	return true
 }
 
-func (info iInterfaceType) prepareRtype(t *itype) {
+func (info iInterfaceType) computeHashStr(t *itype) {
 	panic("unimplemented")
 }
 

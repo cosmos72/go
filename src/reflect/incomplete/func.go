@@ -88,7 +88,7 @@ func (info iFuncType) computeSize(t *itype, work map[*itype]struct{}) bool {
 	return true
 }
 
-func (info iFuncType) prepareRtype(t *itype) {
+func (info iFuncType) computeHashStr(t *itype) {
 	panic("unimplemented")
 }
 

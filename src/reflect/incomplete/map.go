@@ -56,15 +56,15 @@ func (info iMapType) computeSize(t *itype, work map[*itype]struct{}) bool {
 	return true
 }
 
-func (info iMapType) prepareRtype(t *itype) {
+func (info iMapType) computeHashStr(t *itype) {
 	ikey := info.elem.(*itype)
-	prepareRtype(ikey)
+	computeHashStr(ikey)
 	if ikey.incomplete.equal == nil {
 		panic("incomplete.Complete: invalid map key type, is not comparable: " +
 			ikey.string())
 	}
 	ielem := info.elem.(*itype)
-	prepareRtype(ielem)
+	computeHashStr(ielem)
 
 	// TODO canonicalize t.incomplete, ikey.incomplete and ielem.incomplete
 	prepareMapType(t.incomplete, ikey.incomplete, ielem.incomplete, t.string())
