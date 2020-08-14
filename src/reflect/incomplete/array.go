@@ -12,6 +12,7 @@ import (
 
 type iArrayType struct {
 	elem  Type
+	slice *itype
 	count int
 }
 
@@ -41,6 +42,9 @@ func ArrayOf(count int, elem Type) Type {
 	array.ptrToThis = 0
 	array.len = uintptr(count)
 
+	slice := SliceOf(elem).(*itype)
+	array.slice = slice.incomplete
+
 	return canonical(ckey, &itype{
 		named:      nil,
 		comparable: ielem.comparable,
@@ -48,6 +52,7 @@ func ArrayOf(count int, elem Type) Type {
 		incomplete: &array.rtype,
 		info: &iArrayType{
 			elem:  elem,
+			slice: slice,
 			count: count,
 		},
 	})
@@ -72,8 +77,23 @@ func (info *iArrayType) computeSize(t *itype, work map[*itype]struct{}) bool {
 		}
 	}
 	t.setSize(uintptr(info.count)*esize, ielem.align(), ielem.fieldAlign())
-	info.computePtrData(t)
 	return true
+}
+
+func (info *iArrayType) computeHashStr(t *itype) {
+	array := (*arrayType)(unsafe.Pointer(t.incomplete))
+	ielem := info.elem.(*itype)
+	relem := ielem.incomplete
+
+	hash := fnv1(relem.hash, '[')
+	for n := uint32(info.count); n > 0; n >>= 8 {
+		hash = fnv1(hash, byte(n))
+	}
+	array.hash = fnv1(hash, ']')
+	array.str = resolveReflectName(newName(t.string(), "", false))
+
+	computeHashStr(info.slice)
+	info.computePtrData(t)
 }
 
 func (info *iArrayType) computePtrData(t *itype) {
@@ -140,10 +160,7 @@ func (info *iArrayType) computePtrData(t *itype) {
 	}
 }
 
-func (info *iArrayType) computeHashStr(t *itype) {
-	panic("unimplemented")
-}
-
 func (info *iArrayType) completeType(t *itype) {
-	panic("unimplemented")
+	completeType(info.slice)
+	t.complete = wrap(t.incomplete)
 }

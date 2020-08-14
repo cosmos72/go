@@ -94,12 +94,11 @@ const (
 	// iflagDefined means Define was called on the type
 	iflagDefined iflag = 1 << 0
 
-	// iflagSize means the type has known fields: size, align, fieldAlign
-	// and ptrdata
+	// iflagSize means the type has known fields: size, align and fieldAlign
 	iflagSize iflag = 1 << 1
 
-	// iflagHashStr means the type has known fields: hash and str.
-	iflagHashStr = 1 << 2
+	// iflagHashStr means the type has known fields: hash, str and ptrdata
+	iflagHashStr iflag = 1 << 2
 )
 
 // tribool is a three-valued boolean: true, false, unknown
