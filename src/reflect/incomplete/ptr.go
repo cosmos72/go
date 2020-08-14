@@ -25,6 +25,7 @@ func PtrTo(elem Type) Type {
 		return ret.(Type)
 	}
 
+	// TODO: pointer to named type may have methods
 	var iptr interface{} = (*unsafe.Pointer)(nil)
 	pp := **(**ptrType)(unsafe.Pointer(&iptr))
 	pp.ptrToThis = 0

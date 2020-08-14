@@ -7,10 +7,14 @@ package incomplete
 import (
 	"reflect"
 	"strconv"
+	"sync"
+	"unsafe"
 )
 
-// StructField is analogous to reflect.StructField, minus the Index and Offset
-// fields.
+const maxStructFields = 128
+
+// StructField is analogous to reflect.StructField,
+// minus the Index and Offset fields.
 type StructField struct {
 	Name, PkgPath string
 	Type          Type
@@ -22,10 +26,23 @@ type iStructType struct {
 	fields []StructField
 }
 
+// The structLookupCache caches StructOf calls and canonicalizes their return values
+var structLookupCache sync.Map // map[structCacheKey]*itype
+
+// A structCacheKey is the key for use in the structLookupCache.
+type structCacheKey struct {
+	fields     [maxStructFields]StructField
+	fieldCount uintptr
+}
+
 // StructOf is analogous to reflect.StructOf.
 func StructOf(fields []StructField) Type {
-	comparable := ttrue
-	complete := true
+	var (
+		comparable = ttrue
+		complete   = true
+		pkgPath    = ""
+		fs         = make([]structField, len(fields))
+	)
 	for i, field := range fields {
 		if field.Name == "" {
 			panic("incomplete.StructOf: field " + strconv.Itoa(i) + " has no name")
@@ -42,22 +59,80 @@ func StructOf(fields []StructField) Type {
 		}
 		comparable = andTribool(comparable, field.Type.(*itype).comparable)
 
+		f, fpkgPath := field.toRuntime()
+		if fpkgPath != "" {
+			if pkgPath == "" {
+				pkgPath = fpkgPath
+			} else if pkgPath != fpkgPath {
+				panic("incomplete.StructOf: fields with different PkgPath " +
+					pkgPath + " and " + fpkgPath)
+			}
+		}
+		fs[i] = f
 	}
 	if complete {
 		return Of(reflectStructOf(fields))
 	}
-	return &itype{
+	// safety: make a copy of fields[]
+	ckey := structCacheKey{fieldCount: uintptr(len(fields))}
+	copy(ckey.fields[:], fields)
+
+	var ickey interface{} = ckey
+	if t, ok := structLookupCache.Load(ickey); ok {
+		return t.(Type)
+	}
+
+	// Make the struct type.
+	// TODO: create wrapper methods for embedded fields
+	var istruct interface{} = struct{}{}
+	st := **(**structType)(unsafe.Pointer(&istruct))
+	if pkgPath != "" {
+		st.pkgPath = newName(pkgPath, "", false)
+	}
+	st.fields = fs
+
+	t := &itype{
 		named:      nil,
 		comparable: comparable,
 		iflag:      iflag(0),
-		incomplete: &rtype{
-			kind: kStruct,
-		},
+		incomplete: &st.rtype,
 		info: &iStructType{
-			// safety: make a copy of fields[]
-			fields: append(([]StructField)(nil), fields...),
+			fields: ckey.fields[0:len(fields)],
 		},
 	}
+	ret, _ := structLookupCache.LoadOrStore(ickey, t)
+	return ret.(Type)
+}
+
+// StructField.toRuntime takes a StructField value passed to StructOf and
+// returns both the corresponding internal representation, of type
+// structField, and the pkgpath value to use for this field.
+func (field *StructField) toRuntime() (structField, string) {
+	if field.Anonymous && field.PkgPath != "" {
+		panic("incomplete.StructOf: field \"" + field.Name + "\" is anonymous but has PkgPath set")
+	}
+
+	exported := field.PkgPath == ""
+	if exported {
+		// Best-effort check for misuse.
+		// Since this field will be treated as exported, not much harm done if Unicode lowercase slips through.
+		c := field.Name[0]
+		if 'a' <= c && c <= 'z' || c == '_' {
+			panic("incomplete.StructOf: field \"" + field.Name + "\" is unexported but missing PkgPath")
+		}
+	}
+
+	offsetEmbed := uintptr(0)
+	if field.Anonymous {
+		offsetEmbed = 1
+	}
+
+	f := structField{
+		name:        newName(field.Name, string(field.Tag), exported),
+		typ:         nil, // will be set by iStructType.computeHashStr
+		offsetEmbed: offsetEmbed,
+	}
+	return f, field.PkgPath
 }
 
 func reflectStructOf(fields []StructField) reflect.Type {
