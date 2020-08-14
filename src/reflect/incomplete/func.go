@@ -6,13 +6,14 @@ package incomplete
 
 import (
 	"reflect"
+	"sync"
 	"unsafe"
 )
 
 type iFuncType struct {
 	in       []Type
 	out      []Type
-	rargs    []*rtype // slice where in+out reflect.Type must be stored
+	rargs    []*rtype // slice where in+out reflect.Type will be stored
 	variadic bool
 }
 
@@ -43,6 +44,16 @@ type funcTypeFixed128 struct {
 	args [128]*rtype
 }
 
+// The funcLookupCache caches FuncOf calls and canonicalizes their return values
+var funcLookupCache sync.Map // map[funcCacheKey]*itype
+
+// A funcCacheKey is the key for use in the funcLookupCache.
+type funcCacheKey struct {
+	args     [128]*itype
+	inCount  uint16
+	outCount uint16 // if variadic, or'ed with funcOutCountVariadic
+}
+
 // FuncOf is analogous to reflect.FuncOf.
 func FuncOf(in []Type, out []Type, variadic bool) Type {
 	nin := len(in)
@@ -54,23 +65,32 @@ func FuncOf(in []Type, out []Type, variadic bool) Type {
 	if allTypesAreComplete(in) && allTypesAreComplete(out) {
 		return Of(reflectFuncOf(in, out, variadic))
 	}
+	nin, nout := len(in), len(out)
+	if nin+nout > 128 {
+		panic("incomplete.FuncOf: too many arguments")
+	}
+	var ckey funcCacheKey
+	ckey.init(in, out, variadic)
+	var ickey interface{} = ckey
+	if t, ok := funcLookupCache.Load(ickey); ok {
+		return t.(Type)
+	}
 
 	// Make a func type.
 	var ifunc interface{} = (func())(nil)
 	prototype := *(**funcType)(unsafe.Pointer(&ifunc))
 
-	ft, args := makeFuncType(len(in) + len(out))
+	ft, args := makeFuncType(nin + nout)
 	*ft = *prototype
 	ft.tflag = 0
 	ft.ptrToThis = 0
-	ft.inCount = uint16(len(in))
-	ft.outCount = uint16(len(out))
+	ft.inCount = uint16(nin)
+	ft.outCount = uint16(nout)
 	if variadic {
 		ft.outCount |= funcOutCountVariadic
 	}
 
-	// TODO canonicalize return value
-	return &itype{
+	t, _ := funcLookupCache.LoadOrStore(ickey, &itype{
 		named:      nil,
 		comparable: tfalse,
 		iflag:      iflagSize,
@@ -82,7 +102,8 @@ func FuncOf(in []Type, out []Type, variadic bool) Type {
 			rargs:    args,
 			variadic: variadic,
 		},
-	}
+	})
+	return t.(Type)
 }
 
 func reflectFuncOf(in []Type, out []Type, variadic bool) reflect.Type {
@@ -95,6 +116,21 @@ func reflectFuncOf(in []Type, out []Type, variadic bool) reflect.Type {
 		rout[i] = t.(*itype).complete
 	}
 	return reflect.FuncOf(rin, rout, variadic)
+}
+
+func (ckey *funcCacheKey) init(in []Type, out []Type, variadic bool) {
+	nin := len(in)
+	ckey.inCount = uint16(nin)
+	ckey.outCount = uint16(len(out))
+	if variadic {
+		ckey.outCount |= funcOutCountVariadic
+	}
+	for i, t := range in {
+		ckey.args[i] = t.(*itype)
+	}
+	for i, t := range out {
+		ckey.args[i+nin] = t.(*itype)
+	}
 }
 
 func makeFuncType(n int) (ft *funcType, args []*rtype) {

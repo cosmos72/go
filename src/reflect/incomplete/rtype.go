@@ -118,7 +118,7 @@ type chanType struct {
 type funcType struct {
 	rtype
 	inCount  uint16
-	outCount uint16 // top bit is set if last input parameter is ...
+	outCount uint16 // if variadic, or'ed with funcOutCountVariadic
 }
 
 const (
