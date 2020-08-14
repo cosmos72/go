@@ -19,6 +19,11 @@ func SliceOf(elem Type) Type {
 	if ielem.complete != nil {
 		return Of(reflect.SliceOf(ielem.complete))
 	}
+	// Look in cache.
+	ckey := cacheKey{kSlice, ielem, nil, 0}
+	if ret, ok := lookupCache.Load(ckey); ok {
+		return ret.(Type)
+	}
 	// Make a slice type.
 	var islice interface{} = ([]unsafe.Pointer)(nil)
 	slice := **(**sliceType)(unsafe.Pointer(&islice))
@@ -26,16 +31,16 @@ func SliceOf(elem Type) Type {
 	slice.ptrToThis = 0
 	slice.elem = nil
 
-	// TODO canonicalize return value
-	return &itype{
-		named:      nil,
-		incomplete: &slice.rtype,
-		comparable: tfalse,
-		iflag:      iflagSize,
-		info: &iSliceType{
-			elem: elem,
-		},
-	}
+	return canonical(ckey,
+		&itype{
+			named:      nil,
+			incomplete: &slice.rtype,
+			comparable: tfalse,
+			iflag:      iflagSize,
+			info: &iSliceType{
+				elem: elem,
+			},
+		})
 }
 
 func (info *iSliceType) printTo(dst []byte, sep string) []byte {

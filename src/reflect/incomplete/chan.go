@@ -20,6 +20,11 @@ func ChanOf(dir reflect.ChanDir, elem Type) Type {
 	if ielem.complete != nil {
 		return Of(reflect.ChanOf(dir, ielem.complete))
 	}
+	// Look in cache.
+	ckey := cacheKey{kChan, ielem, nil, uintptr(dir)}
+	if ret, ok := lookupCache.Load(ckey); ok {
+		return ret.(Type)
+	}
 
 	// Make a channel type.
 	var ichan interface{} = (chan unsafe.Pointer)(nil)
@@ -28,8 +33,7 @@ func ChanOf(dir reflect.ChanDir, elem Type) Type {
 	ch.dir = uintptr(dir)
 	ch.elem = nil
 
-	// TODO canonicalize return value
-	return &itype{
+	return canonical(ckey, &itype{
 		named:      nil,
 		comparable: ttrue,
 		iflag:      iflagSize,
@@ -38,7 +42,7 @@ func ChanOf(dir reflect.ChanDir, elem Type) Type {
 			elem: elem,
 			dir:  dir,
 		},
-	}
+	})
 }
 
 func (info *iChanType) printTo(dst []byte, sep string) []byte {

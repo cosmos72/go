@@ -139,7 +139,7 @@ func (flag tribool) String() string {
 	return "tunknown"
 }
 
-// ofMap is the cache for Of.
+// ofMap is the canonicalizing cache for Of.
 var ofMap = map[reflect.Type]*itype{}
 var ofMutex sync.Mutex
 

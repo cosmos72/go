@@ -24,6 +24,11 @@ func MapOf(key, elem Type) Type {
 	if ikey.comparable == tfalse {
 		panic("incomplete.MapOf: invalid key type, is not comparable")
 	}
+	// Look in cache.
+	ckey := cacheKey{kMap, ikey, ielem, 0}
+	if ret, ok := lookupCache.Load(ckey); ok {
+		return ret.(Type)
+	}
 
 	// Make a map type.
 	var imap interface{} = (map[unsafe.Pointer]unsafe.Pointer)(nil)
@@ -34,8 +39,7 @@ func MapOf(key, elem Type) Type {
 	mt.key = nil
 	mt.elem = nil
 
-	// TODO canonicalize return value
-	return &itype{
+	return canonical(ckey, &itype{
 		named:      nil,
 		comparable: tfalse,
 		iflag:      iflagSize,
@@ -44,7 +48,7 @@ func MapOf(key, elem Type) Type {
 			key:  key,
 			elem: elem,
 		},
-	}
+	})
 }
 
 func (info *iMapType) printTo(dst []byte, sep string) []byte {

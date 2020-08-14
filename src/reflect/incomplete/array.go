@@ -29,6 +29,11 @@ func ArrayOf(count int, elem Type) Type {
 	if ielem.complete != nil {
 		return Of(reflect.ArrayOf(count, ielem.complete))
 	}
+	// Look in cache.
+	ckey := cacheKey{kArray, ielem, nil, uintptr(count)}
+	if ret, ok := lookupCache.Load(ckey); ok {
+		return ret.(Type)
+	}
 
 	var iarray interface{} = [1]unsafe.Pointer{}
 	array := **(**arrayType)(unsafe.Pointer(&iarray))
@@ -36,7 +41,7 @@ func ArrayOf(count int, elem Type) Type {
 	array.ptrToThis = 0
 	array.len = uintptr(count)
 
-	return &itype{
+	return canonical(ckey, &itype{
 		named:      nil,
 		comparable: ielem.comparable,
 		iflag:      ielem.iflag & iflagSize,
@@ -45,7 +50,7 @@ func ArrayOf(count int, elem Type) Type {
 			elem:  elem,
 			count: count,
 		},
-	}
+	})
 }
 
 func (info *iArrayType) printTo(dst []byte, sep string) []byte {

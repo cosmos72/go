@@ -11,6 +11,7 @@ package incomplete
 
 import (
 	"reflect"
+	"sync"
 )
 
 // itype is the implementation of Type
@@ -44,6 +45,25 @@ type iAnyType interface {
 	computeSize(t *itype, work map[*itype]struct{}) bool
 	computeHashStr(*itype)
 	completeType(*itype)
+}
+
+// The lookupCache caches ArrayOf, ChanOf, MapOf, PtrTo and SliceOf calls
+// and canonicalizes their return values
+var lookupCache sync.Map // map[cacheKey]*itype
+
+// A cacheKey is the key for use in the lookupCache.
+// Four values describe any of the types we are looking for:
+// type kind, one or two subtypes, and an extra integer.
+type cacheKey struct {
+	kind  kind
+	t1    *itype
+	t2    *itype
+	extra uintptr
+}
+
+func canonical(ckey cacheKey, t *itype) Type {
+	ret, _ := lookupCache.LoadOrStore(ckey, t)
+	return ret.(Type)
 }
 
 // itype methods

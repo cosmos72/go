@@ -29,10 +29,6 @@ func appendVarint(x []byte, v uintptr) []byte
 //go:linkname bucketOf reflect.bucketOf
 func bucketOf(ktyp, etyp *rtype) *rtype
 
-// convert *incomplete.rtype to reflect.Type and canonicalize it
-//go:linkname canonicalize reflect.toType
-func canonicalize(t *rtype) reflect.Type
-
 //go:linkname emitGCMask reflect.emitGCMask
 func emitGCMask(out []byte, base uintptr, typ *rtype, n uintptr)
 

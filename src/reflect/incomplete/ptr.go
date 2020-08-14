@@ -19,21 +19,27 @@ func PtrTo(elem Type) Type {
 	if ielem.complete != nil {
 		return Of(reflect.PtrTo(ielem.complete))
 	}
+	// Look in cache.
+	ckey := cacheKey{kPtr, ielem, nil, 0}
+	if ret, ok := lookupCache.Load(ckey); ok {
+		return ret.(Type)
+	}
+
 	var iptr interface{} = (*unsafe.Pointer)(nil)
 	pp := **(**ptrType)(unsafe.Pointer(&iptr))
 	pp.ptrToThis = 0
 	pp.elem = nil
 
-	// TODO canonicalize return value
-	return &itype{
-		named:      nil,
-		comparable: ttrue,
-		iflag:      iflagSize,
-		incomplete: &pp.rtype,
-		info: &iPtrType{
-			elem: elem,
-		},
-	}
+	return canonical(ckey,
+		&itype{
+			named:      nil,
+			comparable: ttrue,
+			iflag:      iflagSize,
+			incomplete: &pp.rtype,
+			info: &iPtrType{
+				elem: elem,
+			},
+		})
 }
 
 func (info *iPtrType) printTo(dst []byte, sep string) []byte {
