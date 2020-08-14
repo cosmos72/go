@@ -61,11 +61,6 @@ func resolveReflectName(n name) nameOff
 //go:linkname typehash reflect.typehash
 func typehash(t *rtype, p unsafe.Pointer, h uintptr) uintptr
 
-// convert reflect.Type to *incomplete.rtype
-func unwrap(t reflect.Type) *rtype {
-	return *(**rtype)(unsafe.Pointer(&t))
-}
-
 // convert *incomplete.rtype to reflect.Type
 //go:linkname wrap reflect.toType
 func wrap(rt *rtype) reflect.Type

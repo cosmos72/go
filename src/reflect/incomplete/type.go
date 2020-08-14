@@ -238,8 +238,5 @@ func computeHashStr(t *itype) {
 }
 
 func completeType(t *itype) {
-	if t.complete != nil {
-		return
-	}
 	t.completeType(t)
 }

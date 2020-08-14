@@ -171,6 +171,7 @@ func (u *itype) computeSize(t *itype, work map[*itype]struct{}) bool {
 		return false
 	}
 	push(t, work)
+	// forward the call to u.info
 	ok := u.info.computeSize(t, work)
 	delete(work, t)
 	return ok
