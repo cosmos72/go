@@ -37,10 +37,11 @@ func Complete(
 	for _, t := range in {
 		computeHashStr(t.(*itype))
 	}
-	for _, t := range in {
-		completeType(t.(*itype))
+	ret := make([]reflect.Type, len(in))
+	for i, t := range in {
+		ret[i] = completeType(t.(*itype))
 	}
-	return nil
+	return ret
 }
 
 func allTypesAreComplete(types []Type) bool {

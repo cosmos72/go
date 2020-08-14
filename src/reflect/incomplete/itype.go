@@ -67,32 +67,6 @@ func canonical(ckey cacheKey, t *itype) Type {
 }
 
 // itype methods
-func (t *itype) Define(u Type) {
-	if t.iflag&iflagDefined != 0 {
-		panic("incomplete.Type.Define: already invoked on this type")
-	}
-	if t.named == nil {
-		panic("incomplete.Type.Define: type not created with NamedOf")
-	}
-	if t.complete != nil {
-		panic("incomplete.Type.Define: type is already complete")
-	}
-	t.info = u.(*itype)
-	descendType(t)
-	t.computeSize(t, nil)
-	t.iflag |= iflagDefined
-}
-
-func (t *itype) AddMethod(mtd Method) {
-	if t.named == nil {
-		panic("incomplete.Type.AddMethod: type not created with NamedOf")
-	}
-	if t.complete != nil {
-		panic("incomplete.Type.AddMethod: type is already complete")
-	}
-	t.named.vmethod = append(t.named.vmethod, mtd)
-}
-
 func (t *itype) kind() kind {
 	if t.complete != nil {
 		return kind(t.complete.Kind())
@@ -152,22 +126,6 @@ func (t *itype) setSize(size uintptr, align uint8, fieldAlign uint8) {
 	t.incomplete.align = align
 	t.incomplete.fieldAlign = fieldAlign
 	t.iflag |= iflagSize
-}
-
-func makeQname(name, pkgPath string) qname {
-	str := name
-	if pkgPath != "" {
-		str = pkgPath + "." + name
-		// slightly reduce memory usage
-		pkgPath = str[:len(pkgPath)]
-		name = str[1+len(pkgPath):]
-		str = filename(str)
-	}
-	return qname{
-		name:    name,
-		pkgPath: pkgPath,
-		str:     str,
-	}
 }
 
 func (t *itype) printTo(bytes []byte, separator string) []byte {

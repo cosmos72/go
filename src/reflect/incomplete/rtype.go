@@ -69,26 +69,6 @@ type rtype struct {
 	ptrToThis typeOff // type for pointer to this type, may be zero
 }
 
-// Method on non-interface type
-type method struct {
-	name nameOff // name of method
-	mtyp typeOff // method type (without receiver)
-	ifn  textOff // fn used in interface call (one-word receiver)
-	tfn  textOff // fn used for normal method call
-}
-
-// uncommonType is present only for defined types or types with methods
-// (if T is a defined type, the uncommonTypes for T and *T have methods).
-// Using a pointer to this struct reduces the overall size required
-// to describe a non-defined type with no methods.
-type uncommonType struct {
-	pkgPath nameOff // import path; empty for built-in types like int, string
-	mcount  uint16  // number of methods
-	xcount  uint16  // number of exported methods
-	moff    uint32  // offset from this uncommontype to [mcount]method
-	_       uint32  // unused
-}
-
 // arrayType represents a fixed array type.
 type arrayType struct {
 	rtype

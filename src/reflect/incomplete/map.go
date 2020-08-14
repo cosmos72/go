@@ -117,5 +117,5 @@ func prepareMapType(t *rtype, ktyp *rtype, etyp *rtype, str string) {
 }
 
 func (info iMapType) completeType(t *itype) {
-	panic("unimplemented")
+	t.complete = wrap(t.incomplete)
 }

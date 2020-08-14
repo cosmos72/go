@@ -73,5 +73,5 @@ func (info *iChanType) computeHashStr(t *itype) {
 }
 
 func (info *iChanType) completeType(t *itype) {
-	panic("unimplemented")
+	t.complete = wrap(t.incomplete)
 }

@@ -180,22 +180,6 @@ func of(rtyp reflect.Type) Type {
 	return ityp
 }
 
-// NamedOf creates a new incomplete type with the specified name and package path.
-// The returned type can be bound to an underlying type calling its Define method.
-func NamedOf(name, pkgPath string) Type {
-	if name == "" {
-		panic("incomplete.NamedOf: empty name")
-	}
-	if !isValidFieldName(name) {
-		panic("incomplete.NamedOf: invalid name")
-	}
-	return &itype{
-		named: &namedType{
-			qname: makeQname(name, pkgPath),
-		},
-	}
-}
-
 // filename returns the trailing portion of path after the last '/'
 func filename(path string) string {
 	n := len(path)
@@ -207,27 +191,6 @@ func filename(path string) string {
 	return path
 }
 
-func descendType(t *itype) {
-	next := func(ityp *itype) *itype {
-		var ret *itype
-		if ityp != nil {
-			ret, _ = ityp.info.(*itype)
-		}
-		return ret
-	}
-	t1, t2, last := t, t, t
-	for t1 != nil {
-		last = t1
-		t1 = next(t1)
-		t2 = next(next(t2))
-		if t1 == t2 {
-			t.info = nil
-			panic("incomplete.Type.Define(): invalid Type loop")
-		}
-	}
-	t.info = last
-}
-
 func computeSize(t *itype, work map[*itype]struct{}) bool {
 	return t.computeSize(t, work)
 }
@@ -236,6 +199,7 @@ func computeHashStr(t *itype) {
 	t.computeHashStr(t)
 }
 
-func completeType(t *itype) {
+func completeType(t *itype) reflect.Type {
 	t.completeType(t)
+	return t.complete
 }

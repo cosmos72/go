@@ -64,5 +64,5 @@ func (info *iSliceType) computeHashStr(t *itype) {
 }
 
 func (info *iSliceType) completeType(t *itype) {
-	panic("unimplemented")
+	t.complete = wrap(t.incomplete)
 }

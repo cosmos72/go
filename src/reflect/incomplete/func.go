@@ -10,6 +10,8 @@ import (
 	"unsafe"
 )
 
+const maxFuncArgs = 128
+
 type iFuncType struct {
 	in       []Type
 	out      []Type
@@ -39,9 +41,9 @@ type funcTypeFixed64 struct {
 	funcType
 	args [64]*rtype
 }
-type funcTypeFixed128 struct {
+type funcTypeFixedMax struct {
 	funcType
-	args [128]*rtype
+	args [maxFuncArgs]*rtype
 }
 
 // The funcLookupCache caches FuncOf calls and canonicalizes their return values
@@ -49,7 +51,7 @@ var funcLookupCache sync.Map // map[funcCacheKey]*itype
 
 // A funcCacheKey is the key for use in the funcLookupCache.
 type funcCacheKey struct {
-	args     [128]*itype
+	args     [maxFuncArgs]*itype
 	inCount  uint16
 	outCount uint16 // if variadic, or'ed with funcOutCountVariadic
 }
@@ -58,15 +60,15 @@ type funcCacheKey struct {
 func FuncOf(in []Type, out []Type, variadic bool) Type {
 	nin := len(in)
 	if variadic && (nin == 0 || in[nin-1] == nil ||
-		(in[nin-1].kind() != kInvalid && in[nin-1].kind() != kSlice)) {
+		in[nin-1].kind() != kSlice || in[nin-1].(*itype).named != nil) {
 
-		panic("incomplete.FuncOf: last arg of variadic func must be slice")
+		panic("incomplete.FuncOf: last arg of variadic func must be unnamed slice")
 	}
 	if allTypesAreComplete(in) && allTypesAreComplete(out) {
 		return Of(reflectFuncOf(in, out, variadic))
 	}
 	nin, nout := len(in), len(out)
-	if nin+nout > 128 {
+	if nin+nout > maxFuncArgs {
 		panic("incomplete.FuncOf: too many arguments")
 	}
 	var ckey funcCacheKey
@@ -158,8 +160,8 @@ func makeFuncType(n int) (ft *funcType, args []*rtype) {
 		fixed := new(funcTypeFixed64)
 		args = fixed.args[:n]
 		ft = &fixed.funcType
-	case n <= 128:
-		fixed := new(funcTypeFixed128)
+	case n <= maxFuncArgs:
+		fixed := new(funcTypeFixedMax)
 		args = fixed.args[:n]
 		ft = &fixed.funcType
 	default:
