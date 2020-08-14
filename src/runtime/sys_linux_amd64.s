@@ -33,10 +33,8 @@
 #define SYS_clone		56
 #define SYS_exit		60
 #define SYS_kill		62
-#define SYS_uname		63
 #define SYS_fcntl		72
 #define SYS_sigaltstack 	131
-#define SYS_mlock		149
 #define SYS_arch_prctl		158
 #define SYS_gettid		186
 #define SYS_futex		202
@@ -206,7 +204,7 @@ TEXT runtime·mincore(SB),NOSPLIT,$0-28
 
 // func walltime1() (sec int64, nsec int32)
 // non-zero frame-size means bp is saved and restored
-TEXT runtime·walltime1(SB),NOSPLIT,$8-12
+TEXT runtime·walltime1(SB),NOSPLIT,$16-12
 	// We don't know how much stack space the VDSO code will need,
 	// so switch to g0.
 	// In particular, a kernel configured with CONFIG_OPTIMIZE_INLINING=n
@@ -221,6 +219,13 @@ TEXT runtime·walltime1(SB),NOSPLIT,$8-12
 	MOVQ	g_m(AX), BX // BX unchanged by C code.
 
 	// Set vdsoPC and vdsoSP for SIGPROF traceback.
+	// Save the old values on stack and restore them on exit,
+	// so this function is reentrant.
+	MOVQ	m_vdsoPC(BX), CX
+	MOVQ	m_vdsoSP(BX), DX
+	MOVQ	CX, 0(SP)
+	MOVQ	DX, 8(SP)
+
 	LEAQ	sec+0(FP), DX
 	MOVQ	-8(DX), CX
 	MOVQ	CX, m_vdsoPC(BX)
@@ -244,8 +249,17 @@ noswitch:
 	CALL	AX
 	MOVQ	0(SP), AX	// sec
 	MOVQ	8(SP), DX	// nsec
+ret:
 	MOVQ	BP, SP		// Restore real SP
-	MOVQ	$0, m_vdsoSP(BX)
+	// Restore vdsoPC, vdsoSP
+	// We don't worry about being signaled between the two stores.
+	// If we are not in a signal handler, we'll restore vdsoSP to 0,
+	// and no one will care about vdsoPC. If we are in a signal handler,
+	// we cannot receive another signal.
+	MOVQ	8(SP), CX
+	MOVQ	CX, m_vdsoSP(BX)
+	MOVQ	0(SP), CX
+	MOVQ	CX, m_vdsoPC(BX)
 	MOVQ	AX, sec+0(FP)
 	MOVL	DX, nsec+8(FP)
 	RET
@@ -257,15 +271,10 @@ fallback:
 	MOVQ	0(SP), AX	// sec
 	MOVL	8(SP), DX	// usec
 	IMULQ	$1000, DX
-	MOVQ	BP, SP		// Restore real SP
-	MOVQ	$0, m_vdsoSP(BX)
-	MOVQ	AX, sec+0(FP)
-	MOVL	DX, nsec+8(FP)
-	RET
+	JMP ret
 
 // func nanotime1() int64
-// non-zero frame-size means bp is saved and restored
-TEXT runtime·nanotime1(SB),NOSPLIT,$8-8
+TEXT runtime·nanotime1(SB),NOSPLIT,$16-8
 	// Switch to g0 stack. See comment above in runtime·walltime.
 
 	MOVQ	SP, BP	// Save old SP; BP unchanged by C code.
@@ -275,6 +284,13 @@ TEXT runtime·nanotime1(SB),NOSPLIT,$8-8
 	MOVQ	g_m(AX), BX // BX unchanged by C code.
 
 	// Set vdsoPC and vdsoSP for SIGPROF traceback.
+	// Save the old values on stack and restore them on exit,
+	// so this function is reentrant.
+	MOVQ	m_vdsoPC(BX), CX
+	MOVQ	m_vdsoSP(BX), DX
+	MOVQ	CX, 0(SP)
+	MOVQ	DX, 8(SP)
+
 	LEAQ	ret+0(FP), DX
 	MOVQ	-8(DX), CX
 	MOVQ	CX, m_vdsoPC(BX)
@@ -298,8 +314,17 @@ noswitch:
 	CALL	AX
 	MOVQ	0(SP), AX	// sec
 	MOVQ	8(SP), DX	// nsec
+ret:
 	MOVQ	BP, SP		// Restore real SP
-	MOVQ	$0, m_vdsoSP(BX)
+	// Restore vdsoPC, vdsoSP
+	// We don't worry about being signaled between the two stores.
+	// If we are not in a signal handler, we'll restore vdsoSP to 0,
+	// and no one will care about vdsoPC. If we are in a signal handler,
+	// we cannot receive another signal.
+	MOVQ	8(SP), CX
+	MOVQ	CX, m_vdsoSP(BX)
+	MOVQ	0(SP), CX
+	MOVQ	CX, m_vdsoPC(BX)
 	// sec is in AX, nsec in DX
 	// return nsec in AX
 	IMULQ	$1000000000, AX
@@ -313,15 +338,8 @@ fallback:
 	CALL	AX
 	MOVQ	0(SP), AX	// sec
 	MOVL	8(SP), DX	// usec
-	MOVQ	BP, SP		// Restore real SP
-	MOVQ	$0, m_vdsoSP(BX)
 	IMULQ	$1000, DX
-	// sec is in AX, nsec in DX
-	// return nsec in AX
-	IMULQ	$1000000000, AX
-	ADDQ	DX, AX
-	MOVQ	AX, ret+0(FP)
-	RET
+	JMP	ret
 
 TEXT runtime·rtsigprocmask(SB),NOSPLIT,$0-28
 	MOVL	how+0(FP), DI
@@ -768,21 +786,4 @@ TEXT runtime·sbrk0(SB),NOSPLIT,$0-8
 	MOVL	$SYS_brk, AX
 	SYSCALL
 	MOVQ	AX, ret+0(FP)
-	RET
-
-// func uname(utsname *new_utsname) int
-TEXT ·uname(SB),NOSPLIT,$0-16
-	MOVQ    utsname+0(FP), DI
-	MOVL    $SYS_uname, AX
-	SYSCALL
-	MOVQ	AX, ret+8(FP)
-	RET
-
-// func mlock(addr, len uintptr) int
-TEXT ·mlock(SB),NOSPLIT,$0-24
-	MOVQ    addr+0(FP), DI
-	MOVQ    len+8(FP), SI
-	MOVL    $SYS_mlock, AX
-	SYSCALL
-	MOVQ	AX, ret+16(FP)
 	RET
