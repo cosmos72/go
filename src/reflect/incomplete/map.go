@@ -83,7 +83,7 @@ func prepareMapType(t *rtype, ktyp *rtype, etyp *rtype, str string) {
 	mt := (*mapType)(unsafe.Pointer(t))
 	mt.str = resolveReflectName(newName(str, "", false))
 	mt.tflag = 0
-	mt.hash = fnv1(etyp.hash, 'm', byte(ktyp.hash>>24), byte(ktyp.hash>>16), byte(ktyp.hash>>8), byte(ktyp.hash))
+	mt.hash = fnv4(fnv1(etyp.hash, 'm'), ktyp.hash)
 	mt.key = ktyp
 	mt.elem = etyp
 	mt.bucket = bucketOf(ktyp, etyp)

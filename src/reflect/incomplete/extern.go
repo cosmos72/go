@@ -35,6 +35,10 @@ func emitGCMask(out []byte, base uintptr, typ *rtype, n uintptr)
 //go:linkname fnv1 reflect.fnv1
 func fnv1(x uint32, list ...byte) uint32
 
+func fnv4(x uint32, y uint32) uint32 {
+	return fnv1(x, byte(y>>24), byte(y>>16), byte(y>>8), byte(y))
+}
+
 //go:linkname hashMightPanic reflect.hashMightPanic
 func hashMightPanic(t *rtype) bool
 

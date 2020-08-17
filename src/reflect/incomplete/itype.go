@@ -138,7 +138,7 @@ func (t *itype) setHashStrFromNamed(named *namedType) {
 		panic("itype.incomplete is nil")
 	}
 	hash := uintptr(unsafe.Pointer(t.incomplete))
-	t.incomplete.hash = fnv1(uint32(hash), byte(hash>>8), byte(hash>>16), byte(hash>>24))
+	t.incomplete.hash = fnv4(uint32(hash>>32), uint32(hash))
 	t.incomplete.str = resolveReflectName(newName(named.str, "", false))
 	// println("setHashStrFromNamed: " + named.str + " -> " + wrap(t.incomplete).String())
 }

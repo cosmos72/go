@@ -116,10 +116,10 @@ func makeTribool(flag bool) tribool {
 	}
 }
 
-func andTribool(a tribool, b tribool) tribool {
-	if a == tunknown || b == tunknown {
+func andTribool(m tribool, b tribool) tribool {
+	if m == tunknown || b == tunknown {
 		return tunknown
-	} else if a == tfalse || b == tfalse {
+	} else if m == tfalse || b == tfalse {
 		return tfalse
 	} else {
 		return ttrue

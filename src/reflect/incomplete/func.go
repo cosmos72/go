@@ -214,7 +214,7 @@ func (info *iFuncType) computeHashStr(t *itype) {
 		computeHashStr(it)
 		rt := it.incomplete
 		args[i] = rt
-		hash = fnv1(hash, byte(rt.hash>>24), byte(rt.hash>>16), byte(rt.hash>>8), byte(rt.hash))
+		hash = fnv4(hash, rt.hash)
 	}
 	if info.variadic {
 		hash = fnv1(hash, 'v')
@@ -226,7 +226,7 @@ func (info *iFuncType) computeHashStr(t *itype) {
 		computeHashStr(it)
 		rt := it.incomplete
 		args[i+nin] = rt
-		hash = fnv1(hash, byte(rt.hash>>24), byte(rt.hash>>16), byte(rt.hash>>8), byte(rt.hash))
+		hash = fnv4(hash, rt.hash)
 	}
 	/* TODO: needed?
 	if len(args) > 50 {

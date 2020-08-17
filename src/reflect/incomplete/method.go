@@ -54,4 +54,31 @@ func (mtd *Method) printTo(dst []byte, sep string) []byte {
 }
 
 func completeMethods(t *itype) {
+	if len(t.named.vmethod) != 0 || len(t.named.pmethod) != 0 {
+		panic("unimplemented")
+	}
+}
+
+var gaps = [...]int{701, 301, 132, 57, 23, 10, 4, 1}
+
+// shell sort
+func sortByName(m []Method) {
+	n := len(m)
+	for _, gap := range gaps {
+		for i := gap; i < n; i++ {
+			temp := m[i]
+			j := i
+			for ; j >= gap && methodNameLess(&temp, &m[j-gap]); j -= gap {
+				m[j] = m[j-gap]
+			}
+			m[j] = temp
+		}
+	}
+}
+
+func methodNameLess(m1 *Method, m2 *Method) bool {
+	if m1.PkgPath < m2.PkgPath {
+		return true
+	}
+	return m1.PkgPath == m2.PkgPath && m1.Name < m2.Name
 }
