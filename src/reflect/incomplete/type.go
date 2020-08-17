@@ -26,18 +26,16 @@ type Type interface {
 	// or if the result would contain an invalid recursion.
 	Define(u Type)
 
-	// AddMethod adds the given method to this type. The Index field of the given
-	// method is ignored. It panics if there is a method name clash, or if
-	// methods with distinct, non-empty PkgPath strings are added. Furthermore,
-	// one of the following cases must apply:
+	// AddMethod adds the given method to this type. It panics if there is
+	// a method name clash, or if methods non-empty PkgPath different from
+	// the type's pkgpath are added.
+	// Furthermore, one of the following cases must apply:
 	//
-	// Case 1: this type was created with InterfaceOf.
-	//
-	// Case 2: this type was created with NamedOf and defined to a non-pointer,
+	// Case 1: this type was created with NamedOf and defined to a non-pointer,
 	// non-interface type.
 	//
-	// Case 3: this type was created with PtrTo, with an element type which
-	// Case 2 applies to.
+	// Case 2: this type was created with PtrTo, with an element type which
+	// Case 1 applies to.
 	AddMethod(mtd Method)
 
 	// unexported

@@ -52,3 +52,6 @@ func (mtd *Method) printTo(dst []byte, sep string) []byte {
 	}
 	return append(dst, buf...)
 }
+
+func completeMethods(t *itype) {
+}

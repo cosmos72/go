@@ -40,9 +40,12 @@ func compare(t *testing.T, actual Type, expected Type) {
 
 func inspectNamed(t *testing.T, rt reflect.Type) {
 	// fmt.Printf("--- type %s ---\n%#v\n", rt.String(), rt)
-	if rt.Name() == "" || /*rt.PkgPath() == "" ||*/ rt.Size() == 0 {
+	if rt.Name() == "" || rt.PkgPath() == "" || rt.Size() == 0 {
 		t.Errorf("created bad reflect.Type %v kind %s", rt, rt.Kind())
+		return
 	}
+	/*x :=*/ reflect.New(rt).Elem().Interface()
+	// t.Logf("created %v %T // %v", x, x, rt.Kind())
 }
 
 var values = []interface{}{

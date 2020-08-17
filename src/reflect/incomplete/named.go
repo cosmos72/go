@@ -51,7 +51,13 @@ type chanTypeUncommon struct {
 type funcTypeUncommon struct {
 	funcType
 	uncommon uncommonType
+	args     [maxFuncArgs]*rtype
 	method   [maxMethods]*rtype
+}
+
+type interfaceTypeUncommon struct {
+	interfaceType
+	uncommon uncommonType
 }
 
 type mapTypeUncommon struct {
@@ -121,6 +127,28 @@ func (t *itype) AddMethod(mtd Method) {
 	if t.complete != nil {
 		panic("incomplete.Type.AddMethod: type is already complete")
 	}
+	if mtd.Name == "" {
+		panic("incomplete.Type.AddMethod: method has no name")
+	} else if !isValidFieldName(mtd.Name) {
+		panic("incomplete.Type.AddMethod: method has invalid name")
+	}
+	if mtd.PkgPath == "" {
+		// Best-effort check for misuse.
+		// Since this method will be treated as exported, not much harm done if Unicode lowercase slips through.
+		c := mtd.Name[0]
+		if 'a' <= c && c <= 'z' || c == '_' {
+			panic("incomplete.Type.AddMethod: method is unexported but missing PkgPath")
+		}
+	} else if mtd.PkgPath != t.named.pkgPath {
+		panic("incomplete.Type.AddMethod: method PkgPath = " + mtd.PkgPath +
+			" is different from type PkgPath = " + t.named.pkgPath)
+	}
+	mtyp := mtd.Type
+	if mtyp == nil {
+		panic("incomplete.Type.AddMethod: method has no type")
+	} else if mtyp.kind() != kFunc {
+		panic("incomplete.Type.AddMethod: method type is not a function")
+	}
 	t.named.vmethod = append(t.named.vmethod, mtd)
 }
 
@@ -135,13 +163,13 @@ func (t *itype) Define(u Type) {
 		panic("incomplete.Type.Define: type is already complete")
 	}
 	t.info = u.(*itype)
-	descendType(t)
+	resolveUnderlying(t)
 	allocUncommonType(t)
 	t.computeSize(t, nil) // early check for forbidden loops
 	t.iflag |= iflagDefined
 }
 
-func descendType(t *itype) {
+func resolveUnderlying(t *itype) {
 	next := func(ityp *itype) *itype {
 		var ret *itype
 		if ityp != nil {
@@ -193,6 +221,7 @@ func allocUncommonType(t *itype) {
 			funcType: *(*funcType)(unsafe.Pointer(rtu)),
 		}
 		uncommon = &fn.uncommon
+		uncommon.moff = uint32(unsafe.Offsetof(fn.method))
 		rt = &fn.rtype
 	case kInterface:
 		panic("unimplemented: named interface type")
@@ -232,12 +261,41 @@ func allocUncommonType(t *itype) {
 		uncommon = &bt.uncommon
 		rt = &bt.rtype
 	}
-	uncommon.moff = uint32(unsafe.Sizeof(uncommonType{}))
+	uncommon.pkgPath = resolveReflectName(newName(t.named.pkgPath, "", false))
+	if uncommon.moff == 0 {
+		uncommon.moff = uint32(unsafe.Sizeof(*uncommon))
+	}
 	rt.hash = 0
 	rt.tflag = (rt.tflag | tflagUncommon | tflagNamed) & ^tflagExtraStar
 	rt.str = 0
 	rt.ptrToThis = 0
 	t.incomplete = rt
+}
+
+func getUncommonType(t *itype) *uncommonType {
+	if t.incomplete == nil || t.incomplete.tflag&tflagUncommon == 0 {
+		return nil
+	}
+	switch t.kind() {
+	case kArray:
+		return &(*arrayTypeUncommon)(unsafe.Pointer(t)).uncommon
+	case kChan:
+		return &(*chanTypeUncommon)(unsafe.Pointer(t)).uncommon
+	case kMap:
+		return &(*mapTypeUncommon)(unsafe.Pointer(t)).uncommon
+	case kInterface:
+		return &(*interfaceTypeUncommon)(unsafe.Pointer(t)).uncommon
+	case kStruct:
+		return &(*structTypeUncommon)(unsafe.Pointer(t)).uncommon
+	case kPtr:
+		return &(*ptrTypeUncommon)(unsafe.Pointer(t)).uncommon
+	case kFunc:
+		return &(*funcTypeUncommon)(unsafe.Pointer(t)).uncommon
+	case kSlice:
+		return &(*sliceTypeUncommon)(unsafe.Pointer(t)).uncommon
+	default:
+		return &(*basicTypeUncommon)(unsafe.Pointer(t)).uncommon
+	}
 }
 
 func (t *uncommonType) methods() []method {

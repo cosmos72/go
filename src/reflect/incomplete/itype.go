@@ -203,12 +203,13 @@ func (u *itype) computeHashStr(t *itype) {
 
 func (u *itype) completeType(t *itype) {
 	if t.complete != nil {
-		return
+		// nothing to do
 	} else if t.named != nil {
 		t.complete = wrap(t.incomplete)
-		return
+		completeMethods(t)
+	} else {
+		// u.info may be another *itype with the same underlying type,
+		// or one of iArrayType, iChanType ... iStructType
+		u.info.completeType(t)
 	}
-	// u.info may be another *itype with the same underlying type,
-	// or one of iArrayType, iChanType ... iStructType
-	u.info.completeType(t)
 }
