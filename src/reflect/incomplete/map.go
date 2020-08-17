@@ -39,7 +39,7 @@ func MapOf(key, elem Type) Type {
 	mt.key = nil
 	mt.elem = nil
 
-	return canonical(ckey, &itype{
+	return canonicalize(ckey, &itype{
 		named:      nil,
 		comparable: tfalse,
 		iflag:      iflagSize,

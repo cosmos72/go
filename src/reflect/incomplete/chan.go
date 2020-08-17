@@ -33,7 +33,7 @@ func ChanOf(dir reflect.ChanDir, elem Type) Type {
 	ch.dir = uintptr(dir)
 	ch.elem = nil
 
-	return canonical(ckey, &itype{
+	return canonicalize(ckey, &itype{
 		named:      nil,
 		comparable: ttrue,
 		iflag:      iflagSize,

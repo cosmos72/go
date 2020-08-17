@@ -30,6 +30,12 @@ type uncommonType struct {
 	_       uint32  // unused
 }
 
+type basicTypeUncommon struct {
+	rtype
+	uncommon uncommonType
+	method   [maxMethods]*rtype
+}
+
 type arrayTypeUncommon struct {
 	arrayType
 	uncommon uncommonType
@@ -104,6 +110,10 @@ func makeQname(name, pkgPath string) qname {
 	}
 }
 
+func (n *namedType) String() string {
+	return n.str
+}
+
 func (t *itype) AddMethod(mtd Method) {
 	if t.named == nil {
 		panic("incomplete.Type.AddMethod: type not created with NamedOf")
@@ -127,7 +137,7 @@ func (t *itype) Define(u Type) {
 	t.info = u.(*itype)
 	descendType(t)
 	allocUncommonType(t)
-	t.computeSize(t, nil)
+	t.computeSize(t, nil) // early check for forbidden loops
 	t.iflag |= iflagDefined
 }
 
@@ -144,7 +154,7 @@ func descendType(t *itype) {
 		last = t1
 		t1 = next(t1)
 		t2 = next(next(t2))
-		if t1 == t2 {
+		if t1 != nil && t1 == t2 {
 			t.info = nil
 			panic("incomplete.Type.Define(): invalid Type loop")
 		}
@@ -154,57 +164,80 @@ func descendType(t *itype) {
 
 func allocUncommonType(t *itype) {
 	u := t.info.(*itype)
+	rtu := u.incomplete
+	if rtu == nil {
+		if u.complete == nil {
+			panic("internal error: fields .complete and .incomplete are both nil in type")
+		}
+		rtu = unwrap(u.complete)
+	}
 	var uncommon *uncommonType
-	switch u.info.(type) {
-	case *iArrayType:
+	var rt *rtype
+	switch kind := u.kind(); kind {
+	case kInvalid:
+		panic("incomplete.Type.Define: underlying type is not Define'd yet")
+	case kArray:
 		array := arrayTypeUncommon{
-			arrayType: *(*arrayType)(unsafe.Pointer(u.incomplete)),
+			arrayType: *(*arrayType)(unsafe.Pointer(rtu)),
 		}
 		uncommon = &array.uncommon
-		t.incomplete = &array.rtype
-	case *iChanType:
+		rt = &array.rtype
+	case kChan:
 		ch := chanTypeUncommon{
-			chanType: *(*chanType)(unsafe.Pointer(u.incomplete)),
+			chanType: *(*chanType)(unsafe.Pointer(rtu)),
 		}
 		uncommon = &ch.uncommon
-		t.incomplete = &ch.rtype
-	case *iFuncType:
+		rt = &ch.rtype
+	case kFunc:
 		fn := funcTypeUncommon{
-			funcType: *(*funcType)(unsafe.Pointer(u.incomplete)),
+			funcType: *(*funcType)(unsafe.Pointer(rtu)),
 		}
 		uncommon = &fn.uncommon
-		t.incomplete = &fn.rtype
-	case *iInterfaceType:
+		rt = &fn.rtype
+	case kInterface:
 		panic("unimplemented: named interface type")
-	case *iMapType:
+	case kMap:
 		m := mapTypeUncommon{
-			mapType: *(*mapType)(unsafe.Pointer(u.incomplete)),
+			mapType: *(*mapType)(unsafe.Pointer(rtu)),
 		}
 		uncommon = &m.uncommon
-		t.incomplete = &m.rtype
-	case *iPtrType:
+		rt = &m.rtype
+	case kPtr:
 		ptr := ptrTypeUncommon{
-			ptrType: *(*ptrType)(unsafe.Pointer(u.incomplete)),
+			ptrType: *(*ptrType)(unsafe.Pointer(rtu)),
 		}
 		uncommon = &ptr.uncommon
-		t.incomplete = &ptr.rtype
-	case *iSliceType:
+		rt = &ptr.rtype
+	case kSlice:
 		slice := sliceTypeUncommon{
-			sliceType: *(*sliceType)(unsafe.Pointer(u.incomplete)),
+			sliceType: *(*sliceType)(unsafe.Pointer(rtu)),
 		}
 		uncommon = &slice.uncommon
-		t.incomplete = &slice.rtype
-	case *iStructType:
+		rt = &slice.rtype
+	case kStruct:
 		st := structTypeUncommon{
-			structType: *(*structType)(unsafe.Pointer(u.incomplete)),
+			structType: *(*structType)(unsafe.Pointer(rtu)),
 		}
 		uncommon = &st.uncommon
-		t.incomplete = &st.rtype
+		rt = &st.rtype
 	default:
-		panic("unexpected info type")
+		/*
+			println("allocUncommonType for kind = " +
+				reflect.Kind(rtu.kind&kindMask).String() + " underlying = " +
+				u.string())
+		*/
+		bt := basicTypeUncommon{
+			rtype: *rtu,
+		}
+		uncommon = &bt.uncommon
+		rt = &bt.rtype
 	}
 	uncommon.moff = uint32(unsafe.Sizeof(uncommonType{}))
-	t.incomplete.tflag |= tflagUncommon
+	rt.hash = 0
+	rt.tflag = (rt.tflag | tflagUncommon | tflagNamed) & ^tflagExtraStar
+	rt.str = 0
+	rt.ptrToThis = 0
+	t.incomplete = rt
 }
 
 func (t *uncommonType) methods() []method {

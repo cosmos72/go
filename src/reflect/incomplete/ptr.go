@@ -33,7 +33,7 @@ func PtrTo(elem Type) Type {
 	pp.ptrToThis = 0
 	pp.elem = nil
 
-	return canonical(ckey,
+	return canonicalize(ckey,
 		&itype{
 			named:      nil,
 			comparable: ttrue,

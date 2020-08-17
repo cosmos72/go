@@ -12,6 +12,7 @@ package incomplete
 import (
 	"reflect"
 	"sync"
+	"unsafe"
 )
 
 // itype is the implementation of Type
@@ -61,7 +62,7 @@ type cacheKey struct {
 	extra uintptr
 }
 
-func canonical(ckey cacheKey, t *itype) Type {
+func canonicalize(ckey cacheKey, t *itype) Type {
 	ret, _ := lookupCache.LoadOrStore(ckey, t)
 	return ret.(Type)
 }
@@ -119,13 +120,27 @@ func (t *itype) fieldAlign() uint8 {
 
 func (t *itype) setSize(size uintptr, align uint8, fieldAlign uint8) {
 	if t.incomplete == nil {
-		// FIXME allocate the correct *Type
-		t.incomplete = &rtype{}
+		panic("itype.incomplete is nil")
 	}
 	t.incomplete.size = size
 	t.incomplete.align = align
 	t.incomplete.fieldAlign = fieldAlign
 	t.iflag |= iflagSize
+}
+
+func (t *itype) setSizeFrom(rfrom *rtype) bool {
+	t.setSize(rfrom.size, rfrom.align, rfrom.fieldAlign)
+	return true
+}
+
+func (t *itype) setHashStrFromNamed(named *namedType) {
+	if t.incomplete == nil {
+		panic("itype.incomplete is nil")
+	}
+	hash := uintptr(unsafe.Pointer(t.incomplete))
+	t.incomplete.hash = fnv1(uint32(hash), byte(hash>>8), byte(hash>>16), byte(hash>>24))
+	t.incomplete.str = resolveReflectName(newName(named.str, "", false))
+	// println("setHashStrFromNamed: " + named.str + " -> " + wrap(t.incomplete).String())
 }
 
 func (t *itype) printTo(bytes []byte, separator string) []byte {
@@ -144,14 +159,19 @@ func (t *itype) printTo(bytes []byte, separator string) []byte {
 func (u *itype) computeSize(t *itype, work map[*itype]struct{}) bool {
 	if t.complete != nil || t.iflag&iflagSize != 0 {
 		return true
+	} else if u.complete != nil {
+		return t.setSizeFrom(unwrap(u.complete))
+	} else if u.incomplete != nil && u.iflag&iflagSize != 0 {
+		return t.setSizeFrom(u.incomplete)
 	}
-	if u.info == nil {
-		return false
+	if t == u {
+		work = push(t, work)
 	}
-	push(t, work)
 	// forward the call to u.info
 	ok := u.info.computeSize(t, work)
-	delete(work, t)
+	if t == u {
+		delete(work, t)
+	}
 	return ok
 }
 
@@ -165,17 +185,17 @@ func push(t *itype, work map[*itype]struct{}) map[*itype]struct{} {
 	return work
 }
 
-// computeHashStr replaces t.incomplete with an *rtype followed in memory
-// by one of: arrayType, chanType, funcType, interfaceType, mapType, ptrType
-// sliceType, sliceType, structType as expected by reflect.
-//
-// it also sets t.incomplete.hash
+// computeHashStr fills t.incomplete fields 'hash' and 'str'
 func (u *itype) computeHashStr(t *itype) {
 	if t.complete != nil || t.iflag&iflagHashStr != 0 {
+		return
+	} else if t.named != nil {
+		t.setHashStrFromNamed(t.named)
 		return
 	}
 	// u.info may be another *itype with the same underlying type as t,
 	// or one of iArrayType, iChanType ... iStructType
+
 	u.info.computeHashStr(t)
 
 	t.iflag |= iflagHashStr
@@ -183,6 +203,9 @@ func (u *itype) computeHashStr(t *itype) {
 
 func (u *itype) completeType(t *itype) {
 	if t.complete != nil {
+		return
+	} else if t.named != nil {
+		t.complete = wrap(t.incomplete)
 		return
 	}
 	// u.info may be another *itype with the same underlying type,

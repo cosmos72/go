@@ -33,7 +33,7 @@ func SliceOf(elem Type) Type {
 	slice.ptrToThis = 0
 	slice.elem = nil
 
-	return canonical(ckey,
+	return canonicalize(ckey,
 		&itype{
 			named:      nil,
 			incomplete: &slice.rtype,

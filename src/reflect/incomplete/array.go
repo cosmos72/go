@@ -45,7 +45,7 @@ func ArrayOf(count int, elem Type) Type {
 	slice := SliceOf(elem).(*itype)
 	array.slice = slice.incomplete
 
-	return canonical(ckey, &itype{
+	return canonicalize(ckey, &itype{
 		named:      nil,
 		comparable: ielem.comparable,
 		iflag:      ielem.iflag & iflagSize,

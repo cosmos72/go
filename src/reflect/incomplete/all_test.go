@@ -6,6 +6,7 @@ package incomplete
 
 import (
 	"reflect"
+	"strconv"
 	"testing"
 	"unsafe"
 )
@@ -37,13 +38,20 @@ func compare(t *testing.T, actual Type, expected Type) {
 	}
 }
 
+func inspectNamed(t *testing.T, rt reflect.Type) {
+	// fmt.Printf("--- type %s ---\n%#v\n", rt.String(), rt)
+	if rt.Name() == "" || /*rt.PkgPath() == "" ||*/ rt.Size() == 0 {
+		t.Errorf("created bad reflect.Type %v kind %s", rt, rt.Kind())
+	}
+}
+
 var values = []interface{}{
 	false,
 	int(0), int8(0), int16(0), int32(0), int64(0),
 	uint(0), uint8(0), uint16(0), uint32(0), uint64(0), uintptr(0),
 	float32(0), float64(0), complex64(0), complex128(0),
-	[0]int{}, make(chan int), func(...int) {}, map[int]int{}, new(int),
-	[](*int){}, "", struct{}{}, unsafe.Pointer(nil),
+	[1]int{}, make(chan int), func(...int) {}, map[int]int{}, new(int),
+	[](*int){}, "", struct{ X int }{0}, unsafe.Pointer(nil),
 }
 
 func TestArrayOf(t *testing.T) {
@@ -127,6 +135,16 @@ func TestNamedOf(t *testing.T) {
 		iflag:      0,
 	}
 	compare(t, actual, expected)
+}
+
+func TestCompleteNamedOf(t *testing.T) {
+	for i, x := range values {
+		name, pkgPath := "foo"+strconv.Itoa(i), "my/pkg/path"
+		named := NamedOf(name, pkgPath)
+		named.Define(Of(reflect.TypeOf(x)))
+		rt := Complete([]Type{named}, nil)[0]
+		inspectNamed(t, rt)
+	}
 }
 
 func TestOf(t *testing.T) {
