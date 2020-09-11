@@ -55,11 +55,10 @@ func StructOf(fields []StructField) Type {
 		}
 		if field.Type.(*itype).complete == nil {
 			complete = false
-			break
 		}
 		comparable = andTribool(comparable, field.Type.(*itype).comparable)
 
-		f, fpkgPath := field.toRuntime()
+		f, fpkgPath := field.toInternal()
 		if fpkgPath != "" {
 			if pkgPath == "" {
 				pkgPath = fpkgPath
@@ -84,12 +83,15 @@ func StructOf(fields []StructField) Type {
 
 	// Make the struct type.
 	// TODO: create wrapper methods for embedded fields
-	var istruct interface{} = struct{}{}
-	st := **(**structType)(unsafe.Pointer(&istruct))
+	st := &structType{
+		rtype: rtype{
+			kind: kStruct,
+		},
+		fields: fs,
+	}
 	if pkgPath != "" {
 		st.pkgPath = newName(pkgPath, "", false)
 	}
-	st.fields = fs
 
 	t := &itype{
 		named:      nil,
@@ -104,10 +106,10 @@ func StructOf(fields []StructField) Type {
 	return ret.(Type)
 }
 
-// StructField.toRuntime takes a StructField value passed to StructOf and
+// StructField.toInternal takes a StructField value passed to StructOf and
 // returns both the corresponding internal representation, of type
 // structField, and the pkgpath value to use for this field.
-func (field *StructField) toRuntime() (structField, string) {
+func (field *StructField) toInternal() (structField, string) {
 	if field.Anonymous && field.PkgPath != "" {
 		panic("incomplete.StructOf: field \"" + field.Name + "\" is anonymous but has PkgPath set")
 	}
@@ -156,8 +158,13 @@ func (field *StructField) toReflect() reflect.StructField {
 }
 
 func (field *StructField) printTo(bytes []byte, separator string) []byte {
-	return append(append(append(append(bytes,
+	bytes = append(append(append(append(bytes,
 		separator...), field.Name...), ' '), field.Type.string()...)
+
+	if field.Tag != "" {
+		bytes = append(append(bytes, ' '), strconv.Quote(string(field.Tag))...)
+	}
+	return bytes
 }
 
 func (info *iStructType) printTo(dst []byte, sep string) []byte {
@@ -221,7 +228,25 @@ func doAlign(x, n uintptr) uintptr {
 }
 
 func (info iStructType) computeHashStr(t *itype) {
-	panic("unimplemented")
+	hash := fnv1(0, []byte("struct {")...)
+
+	for _, field := range info.fields {
+		hash = fnv1(hash, []byte(field.Name)...)
+
+		ft := field.Type.(*itype)
+		computeHashStr(ft)
+
+		hash = fnv4(hash, ft.incomplete.hash)
+		if field.Tag != "" {
+			hash = fnv1(hash, []byte(field.Tag)...)
+		}
+	}
+	hash = fnv1(hash, '}')
+
+	typ := (*structType)(unsafe.Pointer(t.incomplete))
+	typ.hash = hash
+	typ.str = resolveReflectName(newName(t.string(), "", false))
+
 }
 
 func (info *iStructType) completeType(t *itype) {

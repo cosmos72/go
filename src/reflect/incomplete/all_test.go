@@ -44,8 +44,8 @@ func inspectNamed(t *testing.T, rt reflect.Type) {
 		t.Errorf("created bad reflect.Type %v kind %s", rt, rt.Kind())
 		return
 	}
-	/*x :=*/ reflect.New(rt).Elem().Interface()
-	// t.Logf("created %v %T // %v", x, x, rt.Kind())
+	/* x := */ reflect.New(rt).Elem().Interface()
+	// t.Logf("created %v // %v: %T", x, rt.Kind(), x)
 }
 
 var values = []interface{}{
@@ -312,6 +312,28 @@ func TestStructOf(t *testing.T) {
 		comparable: makeTribool(fieldrt.Comparable()),
 		iflag:      iflagSize,
 		complete:   rt,
+	}
+	compare(t, actual, expected)
+}
+
+func TestStructOfNamed(t *testing.T) {
+	name, pkgPath := "bar", "my/pkg/path"
+	fieldt := NamedOf(name, pkgPath)
+	actual := StructOf([]StructField{
+		{Name: "First", Type: fieldt},
+		{Name: "Second", Type: fieldt},
+	})
+	expected := &itype{
+		incomplete: &rtype{
+			hash: actual.(*itype).incomplete.hash,
+			kind: kStruct,
+		},
+		info: &iStructType{
+			[]StructField{
+				{Name: "First", Type: fieldt},
+				{Name: "Second", Type: fieldt},
+			},
+		},
 	}
 	compare(t, actual, expected)
 }

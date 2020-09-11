@@ -116,10 +116,11 @@ func makeTribool(flag bool) tribool {
 	}
 }
 
-func andTribool(m tribool, b tribool) tribool {
-	if m == tunknown || b == tunknown {
+func andTribool(a tribool, b tribool) tribool {
+	// fmt.Printf("andTribool(%v, %v)\n", a, b)
+	if a == tunknown || b == tunknown {
 		return tunknown
-	} else if m == tfalse || b == tfalse {
+	} else if a == tfalse || b == tfalse {
 		return tfalse
 	} else {
 		return ttrue

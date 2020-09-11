@@ -85,7 +85,8 @@ type structTypeUncommon struct {
 }
 
 // NamedOf creates a new incomplete type with the specified name and package path.
-// The returned type can be bound to an underlying type calling its Define method.
+// The returned type can be bound to an underlying type calling its Define method,
+// and converted to reflect.Type calling the Complete function.
 func NamedOf(name, pkgPath string) Type {
 	if name == "" {
 		panic("incomplete.NamedOf: empty name")
