@@ -11,6 +11,12 @@ import (
 	"unsafe"
 )
 
+var (
+	RTypeOfInt reflect.Type = reflect.TypeOf((int(0)))
+	rTypeOfInt *rtype       = unwrap(RTypeOfInt)
+	typeOfInt  Type         = Of(RTypeOfInt)
+)
+
 func compare(t *testing.T, actual Type, expected Type) {
 	iactual := *actual.(*itype)
 	iexpected := *expected.(*itype)
@@ -134,8 +140,24 @@ func TestNamedOf(t *testing.T) {
 		named: &namedType{
 			qname: makeQname(name, pkgPath),
 		},
-		comparable: tunknown,
-		iflag:      0,
+	}
+	compare(t, actual, expected)
+
+	// ==================================
+	actual.Define(typeOfInt)
+	expected = &itype{
+		named: expected.named,
+		iflag: iflagDefined | iflagSize,
+		incomplete: &rtype{
+			size:       RTypeOfInt.Size(),
+			tflag:      tflagUncommon | tflagNamed | tflagRegularMemory,
+			align:      uint8(RTypeOfInt.Align()),
+			fieldAlign: uint8(RTypeOfInt.FieldAlign()),
+			kind:       kInt,
+			equal:      rTypeOfInt.equal,
+			gcdata:     rTypeOfInt.gcdata,
+		},
+		info: typeOfInt.(*itype),
 	}
 	compare(t, actual, expected)
 }
@@ -275,9 +297,9 @@ func TestSliceOf(t *testing.T) {
 func TestSliceOfNamed(t *testing.T) {
 	name, pkgPath := "foo", "my/pkg/path"
 	elem := NamedOf(name, pkgPath)
+
 	actual := SliceOf(elem)
 	expected := &itype{
-		named:      nil,
 		comparable: tfalse,
 		iflag:      iflagSize,
 		incomplete: &rtype{
@@ -295,11 +317,17 @@ func TestSliceOfNamed(t *testing.T) {
 		},
 	}
 	compare(t, actual, expected)
+
+	elem.Define(typeOfInt)
+	compare(t, actual, expected)
+
+	// computeHashStr(actual.(*itype))
+	// compare(t, actual, expected) // currently panics
 }
 
 func TestStructOf(t *testing.T) {
-	fieldrt := reflect.TypeOf(int(0))
-	fieldt := Of(fieldrt)
+	fieldrt := RTypeOfInt
+	fieldt := typeOfInt
 	actual := StructOf([]StructField{
 		{Name: "First", Type: fieldt},
 		{Name: "Second", Type: fieldt},
