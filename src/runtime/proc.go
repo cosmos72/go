@@ -5,6 +5,7 @@
 package runtime
 
 import (
+	"internal/bytealg"
 	"internal/cpu"
 	"runtime/internal/atomic"
 	"runtime/internal/sys"
@@ -557,7 +558,6 @@ func schedinit() {
 
 	sched.maxmcount = 10000
 
-	tracebackinit()
 	moduledataverify()
 	stackinit()
 	mallocinit()
@@ -2575,15 +2575,20 @@ func injectglist(glist *gList) {
 		return
 	}
 
-	lock(&sched.lock)
-	npidle := int(sched.npidle)
+	npidle := int(atomic.Load(&sched.npidle))
+	var globq gQueue
 	var n int
 	for n = 0; n < npidle && !q.empty(); n++ {
-		globrunqput(q.pop())
+		g := q.pop()
+		globq.pushBack(g)
 	}
-	unlock(&sched.lock)
-	startIdle(n)
-	qsize -= n
+	if n > 0 {
+		lock(&sched.lock)
+		globrunqputbatch(&globq, int32(n))
+		unlock(&sched.lock)
+		startIdle(n)
+		qsize -= n
+	}
 
 	if !q.empty() {
 		runqputbatch(pp, &q, qsize)
@@ -3920,6 +3925,13 @@ func _VDSO()                      { _VDSO() }
 //go:nowritebarrierrec
 func sigprof(pc, sp, lr uintptr, gp *g, mp *m) {
 	if prof.hz == 0 {
+		return
+	}
+
+	// If mp.profilehz is 0, then profiling is not enabled for this thread.
+	// We must check this to avoid a deadlock between setcpuprofilerate
+	// and the call to cpuprof.add, below.
+	if mp != nil && mp.profilehz == 0 {
 		return
 	}
 
@@ -5454,13 +5466,10 @@ func setMaxThreads(in int) (out int) {
 }
 
 func haveexperiment(name string) bool {
-	if name == "framepointer" {
-		return framepointer_enabled // set by linker
-	}
 	x := sys.Goexperiment
 	for x != "" {
 		xname := ""
-		i := index(x, ",")
+		i := bytealg.IndexByteString(x, ',')
 		if i < 0 {
 			xname, x = x, ""
 		} else {

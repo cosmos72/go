@@ -295,7 +295,10 @@ func (s *state) emitOpenDeferInfo() {
 // worker indicates which of the backend workers is doing the processing.
 func buildssa(fn *Node, worker int) *ssa.Func {
 	name := fn.funcname()
-	printssa := name == ssaDump
+	printssa := false
+	if ssaDump != "" { // match either a simple name e.g. "(*Reader).Reset", or a package.name e.g. "compress/gzip.(*Reader).Reset"
+		printssa = name == ssaDump || myimportpath+"."+name == ssaDump
+	}
 	var astBuf *bytes.Buffer
 	if printssa {
 		astBuf = &bytes.Buffer{}
@@ -329,8 +332,8 @@ func buildssa(fn *Node, worker int) *ssa.Func {
 	s.f.Config = ssaConfig
 	s.f.Cache = &ssaCaches[worker]
 	s.f.Cache.Reset()
-	s.f.DebugTest = s.f.DebugHashMatch("GOSSAHASH", name)
 	s.f.Name = name
+	s.f.DebugTest = s.f.DebugHashMatch("GOSSAHASH")
 	s.f.PrintOrHtmlSSA = printssa
 	if fn.Func.Pragma&Nosplit != 0 {
 		s.f.NoSplit = true
@@ -338,15 +341,16 @@ func buildssa(fn *Node, worker int) *ssa.Func {
 	s.panics = map[funcLine]*ssa.Block{}
 	s.softFloat = s.config.SoftFloat
 
+	// Allocate starting block
+	s.f.Entry = s.f.NewBlock(ssa.BlockPlain)
+	s.f.Entry.Pos = fn.Pos
+
 	if printssa {
 		s.f.HTMLWriter = ssa.NewHTMLWriter(ssaDumpFile, s.f, ssaDumpCFG)
 		// TODO: generate and print a mapping from nodes to values and blocks
 		dumpSourcesColumn(s.f.HTMLWriter, fn)
 		s.f.HTMLWriter.WriteAST("AST", astBuf)
 	}
-
-	// Allocate starting block
-	s.f.Entry = s.f.NewBlock(ssa.BlockPlain)
 
 	// Allocate starting values
 	s.labels = map[string]*ssaLabel{}
@@ -2109,7 +2113,7 @@ func (s *state) expr(n *Node) *ssa.Value {
 		}
 
 		// unsafe.Pointer <--> *T
-		if to.Etype == TUNSAFEPTR && from.IsPtrShaped() || from.Etype == TUNSAFEPTR && to.IsPtrShaped() {
+		if to.IsUnsafePtr() && from.IsPtrShaped() || from.IsUnsafePtr() && to.IsPtrShaped() {
 			return v
 		}
 
@@ -4206,7 +4210,7 @@ func (s *state) openDeferSave(n *Node, t *types.Type, val *ssa.Value) *ssa.Value
 		s.vars[&memVar] = s.newValue1Apos(ssa.OpVarLive, types.TypeMem, argTemp, s.mem(), false)
 		addrArgTemp = s.newValue2Apos(ssa.OpLocalAddr, types.NewPtr(argTemp.Type), argTemp, s.sp, s.mem(), false)
 	}
-	if types.Haspointers(t) {
+	if t.HasPointers() {
 		// Since we may use this argTemp during exit depending on the
 		// deferBits, we must define it unconditionally on entry.
 		// Therefore, we must make sure it is zeroed out in the entry
@@ -4308,12 +4312,12 @@ func (s *state) openDeferExit() {
 			s.vars[&memVar] = s.newValue1Apos(ssa.OpVarLive, types.TypeMem, r.closureNode, s.mem(), false)
 		}
 		if r.rcvrNode != nil {
-			if types.Haspointers(r.rcvrNode.Type) {
+			if r.rcvrNode.Type.HasPointers() {
 				s.vars[&memVar] = s.newValue1Apos(ssa.OpVarLive, types.TypeMem, r.rcvrNode, s.mem(), false)
 			}
 		}
 		for _, argNode := range r.argNodes {
-			if types.Haspointers(argNode.Type) {
+			if argNode.Type.HasPointers() {
 				s.vars[&memVar] = s.newValue1Apos(ssa.OpVarLive, types.TypeMem, argNode, s.mem(), false)
 			}
 		}
@@ -4953,7 +4957,7 @@ func (s *state) rtcall(fn *obj.LSym, returns bool, results []*types.Type, args .
 func (s *state) storeType(t *types.Type, left, right *ssa.Value, skip skipMask, leftIsStmt bool) {
 	s.instrument(t, left, true)
 
-	if skip == 0 && (!types.Haspointers(t) || ssa.IsStackAddr(left)) {
+	if skip == 0 && (!t.HasPointers() || ssa.IsStackAddr(left)) {
 		// Known to not have write barrier. Store the whole type.
 		s.vars[&memVar] = s.newValue3Apos(ssa.OpStore, types.TypeMem, t, left, right, s.mem(), leftIsStmt)
 		return
@@ -4965,7 +4969,7 @@ func (s *state) storeType(t *types.Type, left, right *ssa.Value, skip skipMask, 
 	// TODO: if the writebarrier pass knows how to reorder stores,
 	// we can do a single store here as long as skip==0.
 	s.storeTypeScalars(t, left, right, skip)
-	if skip&skipPtr == 0 && types.Haspointers(t) {
+	if skip&skipPtr == 0 && t.HasPointers() {
 		s.storeTypePtrs(t, left, right)
 	}
 }
@@ -5037,7 +5041,7 @@ func (s *state) storeTypePtrs(t *types.Type, left, right *ssa.Value) {
 		n := t.NumFields()
 		for i := 0; i < n; i++ {
 			ft := t.FieldType(i)
-			if !types.Haspointers(ft) {
+			if !ft.HasPointers() {
 				continue
 			}
 			addr := s.newValue1I(ssa.OpOffPtr, ft.PtrTo(), t.FieldOff(i), left)
@@ -6178,7 +6182,7 @@ func genssa(f *ssa.Func, pp *Progs) {
 
 	// Resolve branches, and relax DefaultStmt into NotStmt
 	for _, br := range s.Branches {
-		br.P.To.Val = s.bstart[br.B.ID]
+		br.P.To.SetTarget(s.bstart[br.B.ID])
 		if br.P.Pos.IsStmt() != src.PosIsStmt {
 			br.P.Pos = br.P.Pos.WithNotStmt()
 		} else if v0 := br.B.FirstPossibleStmtValue(); v0 != nil && v0.Pos.Line() == br.P.Pos.Line() && v0.Pos.IsStmt() == src.PosIsStmt {
@@ -6860,6 +6864,10 @@ func (e *ssafn) Syslook(name string) *obj.LSym {
 
 func (e *ssafn) SetWBPos(pos src.XPos) {
 	e.curfn.Func.setWBPos(pos)
+}
+
+func (e *ssafn) MyImportPath() string {
+	return myimportpath
 }
 
 func (n *Node) Typ() *types.Type {
