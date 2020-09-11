@@ -160,6 +160,17 @@ func TestNamedOf(t *testing.T) {
 		info: typeOfInt.(*itype),
 	}
 	compare(t, actual, expected)
+
+	// ==================================
+	computeHashStr(actual.(*itype))
+	expected.incomplete.hash = actual.(*itype).incomplete.hash
+	expected.incomplete.str = actual.(*itype).incomplete.str
+	compare(t, actual, expected)
+
+	// ==================================
+	completeType(actual.(*itype))
+	expected.complete = wrap(expected.incomplete)
+	compare(t, actual, expected)
 }
 
 func TestCompleteNamedOf(t *testing.T) {
