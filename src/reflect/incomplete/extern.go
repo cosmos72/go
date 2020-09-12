@@ -57,6 +57,9 @@ func isValidFieldName(fieldName string) bool
 //go:linkname resolveReflectName reflect.resolveReflectName
 func resolveReflectName(n name) nameOff
 
+//go:linkname resolveNameOff reflect.resolveNameOff
+func resolveNameOff(ptrInModule unsafe.Pointer, off int32) unsafe.Pointer
+
 //go:noescape
 //go:linkname typehash reflect.typehash
 func typehash(t *rtype, p unsafe.Pointer, h uintptr) uintptr

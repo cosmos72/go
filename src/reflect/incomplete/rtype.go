@@ -193,3 +193,38 @@ type structType struct {
 type name struct {
 	bytes *byte
 }
+
+// unsafeString is the runtime representation of a string.
+// It cannot be used safely or portably and its representation may
+// change in a later release.
+//
+// Unlike reflect.StringHeader, its Data field is sufficient to guarantee the
+// data it references will not be garbage collected.
+type unsafeString struct {
+	Data unsafe.Pointer
+	Len  int
+}
+
+func (n name) name() (s string) {
+	if n.bytes == nil {
+		return
+	}
+	b := (*[4]byte)(unsafe.Pointer(n.bytes))
+
+	hdr := (*unsafeString)(unsafe.Pointer(&s))
+	hdr.Data = unsafe.Pointer(&b[3])
+	hdr.Len = int(b[1])<<8 | int(b[2])
+	return s
+}
+
+func (t *rtype) nameOff(off nameOff) name {
+	return name{(*byte)(resolveNameOff(unsafe.Pointer(t), int32(off)))}
+}
+
+func (t *rtype) string() string {
+	s := t.nameOff(t.str).name()
+	if s != "" && t.tflag&tflagExtraStar != 0 {
+		return s[1:]
+	}
+	return s
+}

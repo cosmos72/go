@@ -117,7 +117,7 @@ func makeQname(name, pkgPath string) qname {
 	}
 }
 
-func (n *namedType) String() string {
+func (n *namedType) string() string {
 	return n.str
 }
 
@@ -163,14 +163,13 @@ func (t *itype) Define(u Type) {
 	if t.complete != nil {
 		panic("incomplete.Type.Define: type is already complete")
 	}
-	t.info = u.(*itype)
-	resolveUnderlying(t)
+	t.info = resolveUnderlying(u.(*itype))
 	allocUncommonType(t)
 	t.computeSize(t, nil) // early check for forbidden loops
 	t.iflag |= iflagDefined
 }
 
-func resolveUnderlying(t *itype) {
+func resolveUnderlying(t *itype) *itype {
 	next := func(ityp *itype) *itype {
 		var ret *itype
 		if ityp != nil {
@@ -188,7 +187,7 @@ func resolveUnderlying(t *itype) {
 			panic("incomplete.Type.Define(): invalid Type loop")
 		}
 	}
-	t.info = last
+	return last
 }
 
 func allocUncommonType(t *itype) {

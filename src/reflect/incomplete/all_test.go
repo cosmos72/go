@@ -17,33 +17,6 @@ var (
 	typeOfInt  Type         = Of(RTypeOfInt)
 )
 
-func compare(t *testing.T, actual Type, expected Type) {
-	iactual := *actual.(*itype)
-	iexpected := *expected.(*itype)
-	ractual := iactual.incomplete
-	rexpected := iexpected.incomplete
-	iactual.incomplete = nil
-	iexpected.incomplete = nil
-
-	ok := reflect.DeepEqual(&iactual, &iexpected) &&
-		reflect.DeepEqual(ractual, rexpected)
-	if !ok && ractual != nil && rexpected != nil && ractual.equal != nil && rexpected.equal != nil {
-		ractualcopy := *ractual
-		rexpectedcopy := *rexpected
-		ractualcopy.equal = nil
-		rexpectedcopy.equal = nil
-		ok = reflect.DeepEqual(&ractualcopy, &rexpectedcopy)
-	}
-	if !ok {
-		t.Errorf("\n\texpected  %+v\n\tactual    %+v", expected, actual)
-		t.Errorf("\n\texpected.incomplete  %+v\n\tactual.incomplete    %+v", rexpected, ractual)
-	}
-
-	if actual.string() != expected.string() {
-		t.Errorf("\n\texpected  %s\n\tactual    %s", expected.string(), actual.string())
-	}
-}
-
 func inspectNamed(t *testing.T, rt reflect.Type) {
 	// fmt.Printf("--- type %s ---\n%#v\n", rt.String(), rt)
 	if rt.Name() == "" || rt.PkgPath() == "" || rt.Size() == 0 {
